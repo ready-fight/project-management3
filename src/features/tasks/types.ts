@@ -1,4 +1,7 @@
-import { Models } from "node-appwrite";
+import type { Models } from "node-appwrite";
+
+import type { Member } from "@/features/members/types";
+import type { Project } from "@/features/projects/types";
 
 export enum TaskStatus {
   BACKLOG = "BACKLOG",
@@ -17,7 +20,8 @@ export enum TaskType {
   OTHER = "OTHER",
 }
 
-export type Task = Models.Document & {
+/** Raw task shape stored in Appwrite. */
+export type TaskDocument = Models.Document & {
   name: string;
   status: TaskStatus;
   workspaceId: string;
@@ -30,14 +34,16 @@ export type Task = Models.Document & {
   taskType?: TaskType;
   isImportant?: boolean;
   description?: string;
-  project: {
-    $id: string;
-    name: string;
-    imageUrl?: string;
-  };
-  assignee: {
-    $id: string;
-    name: string;
-    email?: string;
-  };
+};
+
+/** Assignee returned to the UI after resolving the Appwrite member's user. */
+export type TaskAssignee = Member & {
+  name: string;
+  email: string;
+};
+
+/** Fully populated task shape returned by the task GET endpoints. */
+export type Task = TaskDocument & {
+  project: Project;
+  assignee: TaskAssignee;
 };

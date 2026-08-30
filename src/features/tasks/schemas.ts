@@ -16,6 +16,6 @@ export const createTaskSchema = z.object({
   startTime: timeSchema,
   endTime: timeSchema,
   taskType: z.nativeEnum(TaskType, { required_error: "必須項目です" }),
-  isImportant: z.boolean().default(false),
+  isImportant: z.boolean(),
   description: z.string().trim().max(1000, "メモは1000文字以内で入力してください").optional(),
 });

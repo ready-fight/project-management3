@@ -8,10 +8,11 @@ import { sessionMiddleware } from "@/lib/session-middleware";
 import { createAdminClient } from "@/lib/appwrite";
 
 import { getMember } from "@/features/members/utils";
+import { Member } from "@/features/members/types";
 import { Project } from "@/features/projects/types";
 
 import { createTaskSchema } from "../schemas";
-import { Task, TaskStatus } from "../types";
+import { Task, TaskDocument, TaskStatus } from "../types";
 
 const app = new Hono()
   .delete("/:taskId", sessionMiddleware, async (c) => {
@@ -19,7 +20,7 @@ const app = new Hono()
     const databases = c.get("databases");
     const { taskId } = c.req.param();
 
-    const task = await databases.getDocument<Task>(
+    const task = await databases.getDocument<TaskDocument>(
       DATABASE_ID,
       TASKS_ID,
       taskId
@@ -101,7 +102,7 @@ const app = new Hono()
         query.push(Query.search("name", search));
       }
 
-      const tasks = await databases.listDocuments<Task>(
+      const tasks = await databases.listDocuments<TaskDocument>(
         DATABASE_ID,
         TASKS_ID,
         query
@@ -116,7 +117,7 @@ const app = new Hono()
         projectIds.length > 0 ? [Query.contains("$id", projectIds)] : []
       );
 
-      const members = await databases.listDocuments(
+      const members = await databases.listDocuments<Member>(
         DATABASE_ID,
         MEMBERS_ID,
         assigneeIds.length > 0 ? [Query.contains("$id", assigneeIds)] : []
@@ -134,7 +135,7 @@ const app = new Hono()
         })
       );
 
-      const populatedTasks = tasks.documents.map((task) => {
+      const populatedTasks: Task[] = tasks.documents.flatMap((task) => {
         const project = projects.documents.find(
           (project) => project.$id === task.projectId
         );
@@ -143,14 +144,26 @@ const app = new Hono()
           (assignee) => assignee.$id === task.assigneeId
         );
 
-        return {
-          ...task,
-          project,
-          assignee,
-        };
+        // Skip orphaned records rather than returning an invalid populated task.
+        if (!project || !assignee) {
+          return [];
+        }
+
+        return [
+          {
+            ...task,
+            project,
+            assignee,
+          },
+        ];
       });
 
-      return c.json({ data: { ...tasks, documents: populatedTasks } });
+      return c.json({
+        data: {
+          ...tasks,
+          documents: populatedTasks,
+        },
+      });
     }
   )
   .post(
@@ -245,7 +258,7 @@ const app = new Hono()
 
       const { taskId } = c.req.param();
 
-      const existingTask = await databases.getDocument<Task>(
+      const existingTask = await databases.getDocument<TaskDocument>(
         DATABASE_ID,
         TASKS_ID,
         taskId
@@ -289,7 +302,7 @@ const app = new Hono()
 
     const { taskId } = c.req.param();
 
-    const task = await databases.getDocument<Task>(
+    const task = await databases.getDocument<TaskDocument>(
       DATABASE_ID,
       TASKS_ID,
       taskId
@@ -311,7 +324,7 @@ const app = new Hono()
       task.projectId
     );
 
-    const member = await databases.getDocument(
+    const member = await databases.getDocument<Member>(
       DATABASE_ID,
       MEMBERS_ID,
       task.assigneeId
@@ -325,13 +338,13 @@ const app = new Hono()
       email: user.email,
     };
 
-    return c.json({
-      data: {
-        ...task,
-        project,
-        assignee,
-      },
-    });
+    const populatedTask: Task = {
+      ...task,
+      project,
+      assignee,
+    };
+
+    return c.json({ data: populatedTask });
   })
   .post(
     "/bulk-update",
@@ -353,7 +366,7 @@ const app = new Hono()
       const databases = c.get("databases");
       const { tasks } = c.req.valid("json");
 
-      const tasksToUpdate = await databases.listDocuments<Task>(
+      const tasksToUpdate = await databases.listDocuments<TaskDocument>(
         DATABASE_ID,
         TASKS_ID,
         [
@@ -394,7 +407,7 @@ const app = new Hono()
       const updatedTasks = await Promise.all(
         tasks.map(async (task) => {
           const { $id, status, position } = task;
-          return databases.updateDocument<Task>(DATABASE_ID, TASKS_ID, $id, {
+          return databases.updateDocument<TaskDocument>(DATABASE_ID, TASKS_ID, $id, {
             status,
             position,
           });

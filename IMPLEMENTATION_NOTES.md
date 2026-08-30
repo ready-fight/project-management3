@@ -128,6 +128,7 @@ Appwrite の TASKS collection に以下を追加してください。
 - `src/features/tasks/types.ts`
   - `TaskType` enum
   - start/end time, task type, important flag
+  - `TaskDocument`（Appwrite上のraw task）と `Task`（UI向けに店舗/担当者をpopulate済み）を分離
   - populated store/assignee shape
 - `src/features/tasks/schemas.ts`
   - 新規運営属性の validation
@@ -180,7 +181,16 @@ Bun がない場合は package-lock を新しく作る前提で npm でも起動
 ## 検証について
 
 この作業環境では npm registry への接続が timeout し、依存 package の再インストールと完全な `next build` は実行できませんでした。
-変更ファイルには TypeScript の構文チェックをかけ、構文エラーがないことは確認しています。
+そのため、今回の安定化パスでは以下を実施しています。
+
+- 全 `.ts` / `.tsx` を TypeScript parser で構文チェック（構文エラー 0）
+- unused import の静的チェック
+- stale な root `features/` を `tsconfig.json` の typecheck 対象から除外
+- Appwrite raw document と UI populated task の型を分離
+- task list / task detail の両GET APIで full Project / Member metadata をpopulate
+- demo seed に新しい task 属性を追加
+
+ローカルでは依存関係が正常な状態で `bun run build` を最終確認してください。
 
 ローカルでは Appwrite 属性追加後に以下を確認してください。
 

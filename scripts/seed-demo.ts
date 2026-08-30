@@ -381,6 +381,11 @@ async function main() {
           projectId: project.$id,
           assigneeId: member.$id,
           dueDate: randomDueDate(),
+          startTime: "09:00",
+          endTime: "10:00",
+          taskType: "OTHER",
+          isImportant: false,
+          description: "",
           position: (memberIndex + 1) * 1000,
         }
       );
@@ -424,6 +429,11 @@ async function main() {
           projectId: project.$id,
           assigneeId: member.$id,
           dueDate: randomDueDate(),
+          startTime: "09:00",
+          endTime: "10:00",
+          taskType: "OTHER",
+          isImportant: false,
+          description: "",
           position: (taskIndex + 1) * 1000,
         }
       );

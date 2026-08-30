@@ -144,7 +144,7 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
           <Button
             type="button"
             size="sm"
-            variant={groupBy === "store" ? "default" : "outline"}
+            variant={groupBy === "store" ? "primary" : "outline"}
             onClick={() => setGroupBy("store")}
           >
             <StoreIcon className="mr-1.5 size-4" />
@@ -153,7 +153,7 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
           <Button
             type="button"
             size="sm"
-            variant={groupBy === "assignee" ? "default" : "outline"}
+            variant={groupBy === "assignee" ? "primary" : "outline"}
             onClick={() => setGroupBy("assignee")}
           >
             <UsersIcon className="mr-1.5 size-4" />
