@@ -1,53 +1,87 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { addDays, format } from "date-fns";
+import { ja } from "date-fns/locale";
 import {
-  DragDropContext,
-  Draggable,
-  Droppable,
-  type DropResult,
-} from "@hello-pangea/dnd";
-import { UsersIcon, StoreIcon, Clock3Icon } from "lucide-react";
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  Clock3Icon,
+  StoreIcon,
+  UsersIcon,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { MemberAvatar } from "@/features/members/components/member-avatar";
 import { useGetMembers } from "@/features/members/api/use-get-members";
+import { ProjectAvatar } from "@/features/projects/components/project-avatar";
 import { useGetProjects } from "@/features/projects/api/use-get-projects";
 import { useWorkspaceId } from "@/features/workspaces/hooks/use-workspace-id";
 
 import { useUpdateTask } from "../api/use-update-task";
+import { TASK_STATUS_LABELS, TASK_TYPE_ICONS, TASK_TYPE_LABELS } from "../constants";
 import { useEditTaskModal } from "../hooks/use-edit-task-modal";
-import { Task, TaskType } from "../types";
-import { TASK_TYPE_ICONS, TASK_TYPE_LABELS } from "../constants";
+import { useTaskFilters } from "../hooks/use-task-filters";
 import {
-  getStoreAccent,
   getTaskDurationMinutes,
   minutesToTime,
   normalizeTime,
   timeToMinutes,
 } from "../task-utils";
+import { Task, TaskStatus, TaskType } from "../types";
 
 type GroupBy = "store" | "assignee";
 
 type Group = {
   id: string;
   name: string;
+  imageUrl?: string;
+};
+
+type TimelineDrag = {
+  task: Task;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  deltaX: number;
+  deltaY: number;
+  targetGroupIndex: number;
+  targetStartMinutes: number;
+  moved: boolean;
 };
 
 const START_MINUTES = 9 * 60;
 const END_MINUTES = 18 * 60;
-const SLOT_MINUTES = 30;
+const SNAP_MINUTES = 30;
+const HOUR_HEIGHT = 78;
+const TIMELINE_HEIGHT = ((END_MINUTES - START_MINUTES) / 60) * HOUR_HEIGHT;
+const GROUP_WIDTH = 250;
 
-const TIME_SLOTS = Array.from(
-  { length: Math.floor((END_MINUTES - START_MINUTES) / SLOT_MINUTES) + 1 },
-  (_, index) => minutesToTime(START_MINUTES + index * SLOT_MINUTES)
+const HOURS = Array.from(
+  { length: (END_MINUTES - START_MINUTES) / 60 + 1 },
+  (_, index) => START_MINUTES + index * 60
 );
 
-const nearestSlot = (value?: string) => {
-  const minutes = timeToMinutes(normalizeTime(value, "09:00"));
-  const clamped = Math.min(END_MINUTES, Math.max(START_MINUTES, minutes));
-  const rounded = Math.round((clamped - START_MINUTES) / SLOT_MINUTES) * SLOT_MINUTES;
-  return minutesToTime(START_MINUTES + rounded);
+const statusCardClasses: Record<TaskStatus, string> = {
+  [TaskStatus.BACKLOG]: "border-amber-300 bg-amber-50/95",
+  [TaskStatus.TODO]: "border-slate-300 bg-slate-50/95",
+  [TaskStatus.IN_PROGRESS]: "border-blue-300 bg-blue-50/95",
+  [TaskStatus.IN_REVIEW]: "border-violet-300 bg-violet-50/95",
+  [TaskStatus.DONE]: "border-emerald-300 bg-emerald-50/95",
 };
+
+const statusDotClasses: Record<TaskStatus, string> = {
+  [TaskStatus.BACKLOG]: "bg-amber-400",
+  [TaskStatus.TODO]: "bg-slate-400",
+  [TaskStatus.IN_PROGRESS]: "bg-blue-500",
+  [TaskStatus.IN_REVIEW]: "bg-violet-500",
+  [TaskStatus.DONE]: "bg-emerald-500",
+};
+
+const taskDateKey = (task: Task) => format(new Date(task.dueDate), "yyyy-MM-dd");
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 interface DataTimelineProps {
   data: Task[];
@@ -55,219 +89,416 @@ interface DataTimelineProps {
 
 export const DataTimeline = ({ data }: DataTimelineProps) => {
   const workspaceId = useWorkspaceId();
-  const [groupBy, setGroupBy] = useState<GroupBy>("store");
+  const [groupBy, setGroupBy] = useState<GroupBy>("assignee");
+  const [dragPreview, setDragPreview] = useState<TimelineDrag | null>(null);
+  const dragRef = useRef<TimelineDrag | null>(null);
+  const columnsRef = useRef<HTMLDivElement | null>(null);
+
+  const [{ projectId, assigneeId, status, dueDate }, setFilters] = useTaskFilters();
   const { mutate: updateTask, isPending } = useUpdateTask();
   const { open } = useEditTaskModal();
-
   const { data: projects } = useGetProjects({ workspaceId });
   const { data: members } = useGetMembers({ workspaceId });
 
+  const selectedDateKey = useMemo(() => {
+    if (dueDate) return format(new Date(dueDate), "yyyy-MM-dd");
+
+    const firstTaskDate = data
+      .map(taskDateKey)
+      .sort((a, b) => a.localeCompare(b))[0];
+
+    return firstTaskDate ?? format(new Date(), "yyyy-MM-dd");
+  }, [data, dueDate]);
+
+  const visibleTasks = useMemo(
+    () =>
+      data.filter((task) => {
+        if (taskDateKey(task) !== selectedDateKey) return false;
+        if (projectId && task.projectId !== projectId) return false;
+        if (assigneeId && task.assigneeId !== assigneeId) return false;
+        if (status && task.status !== status) return false;
+        return true;
+      }),
+    [assigneeId, data, projectId, selectedDateKey, status]
+  );
+
   const groups = useMemo<Group[]>(() => {
     if (groupBy === "store") {
-      return (
+      const allStores =
         projects?.documents.map((project) => ({
           id: project.$id,
           name: project.name,
-        })) ?? []
-      );
+          imageUrl: project.imageUrl,
+        })) ?? [];
+
+      return projectId
+        ? allStores.filter((project) => project.id === projectId)
+        : allStores;
     }
 
-    return (
+    const allMembers =
       members?.documents.map((member) => ({
         id: member.$id,
         name: member.name,
-      })) ?? []
-    );
-  }, [groupBy, members?.documents, projects?.documents]);
+      })) ?? [];
 
-  const taskMap = useMemo(() => {
-    const map = new Map<string, Task[]>();
+    return assigneeId
+      ? allMembers.filter((member) => member.id === assigneeId)
+      : allMembers;
+  }, [assigneeId, groupBy, members?.documents, projectId, projects?.documents]);
 
-    data.forEach((task) => {
+  const tasksByGroup = useMemo(() => {
+    const grouped = new Map<string, Task[]>();
+    groups.forEach((group) => grouped.set(group.id, []));
+
+    visibleTasks.forEach((task) => {
       const groupId = groupBy === "store" ? task.projectId : task.assigneeId;
-      const slot = nearestSlot(task.startTime);
-      const key = `${groupId}__${slot}`;
-      const current = map.get(key) ?? [];
-      current.push(task);
-      map.set(key, current);
+      grouped.get(groupId)?.push(task);
     });
 
-    return map;
-  }, [data, groupBy]);
+    grouped.forEach((tasks) =>
+      tasks.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
+    );
 
-  const onDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
+    return grouped;
+  }, [groupBy, groups, visibleTasks]);
 
-    const task = data.find((item) => item.$id === result.draggableId);
-    if (!task) return;
+  const changeDate = (offset: number) => {
+    const current = new Date(`${selectedDateKey}T00:00:00`);
+    const next = addDays(current, offset);
+    setFilters({ dueDate: next.toISOString() });
+  };
 
-    const [groupId, startTime] = result.destination.droppableId.split("__");
-    if (!groupId || !startTime) return;
+  const startDrag = (
+    event: React.PointerEvent<HTMLButtonElement>,
+    task: Task,
+    groupIndex: number
+  ) => {
+    if (isPending || groups.length === 0) return;
 
-    const duration = getTaskDurationMinutes(task.startTime, task.endTime);
-    const newEndTime = minutesToTime(timeToMinutes(startTime) + duration);
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const drag: TimelineDrag = {
+      task,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      deltaX: 0,
+      deltaY: 0,
+      targetGroupIndex: groupIndex,
+      targetStartMinutes: timeToMinutes(task.startTime),
+      moved: false,
+    };
+
+    dragRef.current = drag;
+    setDragPreview(drag);
+  };
+
+  const moveDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    const columns = columnsRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !columns) return;
+
+    event.preventDefault();
+
+    const rect = columns.getBoundingClientRect();
+    const columnWidth = rect.width / groups.length;
+    const targetGroupIndex = clamp(
+      Math.floor((event.clientX - rect.left) / columnWidth),
+      0,
+      groups.length - 1
+    );
+
+    const duration = getTaskDurationMinutes(drag.task.startTime, drag.task.endTime);
+    const rawMinutes = START_MINUTES + ((event.clientY - rect.top) / HOUR_HEIGHT) * 60;
+    const snappedMinutes =
+      START_MINUTES +
+      Math.round((rawMinutes - START_MINUTES) / SNAP_MINUTES) * SNAP_MINUTES;
+    const targetStartMinutes = clamp(
+      snappedMinutes,
+      START_MINUTES,
+      Math.max(START_MINUTES, END_MINUTES - duration)
+    );
+
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    const moved = drag.moved || Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5;
+
+    const nextDrag: TimelineDrag = {
+      ...drag,
+      deltaX,
+      deltaY,
+      targetGroupIndex,
+      targetStartMinutes,
+      moved,
+    };
+
+    dragRef.current = nextDrag;
+    setDragPreview(nextDrag);
+  };
+
+  const finishDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    dragRef.current = null;
+    setDragPreview(null);
+
+    if (!drag.moved) {
+      open(drag.task.$id);
+      return;
+    }
+
+    const targetGroup = groups[drag.targetGroupIndex];
+    if (!targetGroup) return;
+
+    const duration = getTaskDurationMinutes(drag.task.startTime, drag.task.endTime);
+    const startTime = minutesToTime(drag.targetStartMinutes);
+    const endTime = minutesToTime(drag.targetStartMinutes + duration);
 
     updateTask({
-      param: { taskId: task.$id },
+      param: { taskId: drag.task.$id },
       json: {
         startTime,
-        endTime: newEndTime,
+        endTime,
         ...(groupBy === "store"
-          ? { projectId: groupId }
-          : { assigneeId: groupId }),
+          ? { projectId: targetGroup.id }
+          : { assigneeId: targetGroup.id }),
       },
     });
   };
 
+  const cancelDrag = () => {
+    dragRef.current = null;
+    setDragPreview(null);
+  };
+
   if (groups.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
         時系列ビューを表示するには店舗またはメンバーを登録してください。
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-3 rounded-lg border bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-            <Clock3Icon className="size-4 text-cyan-600" />
-            09:00〜18:00 時系列ビュー
-          </div>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+            <Clock3Icon className="size-5 text-blue-600" />
+            時系列ビュー
+          </h2>
           <p className="mt-1 text-xs text-slate-500">
-            タスクを上下に移動すると時間、左右に移動すると
-            {groupBy === "store" ? "店舗" : "担当者"}が変更されます。
+            タスクをドラッグして時間と{groupBy === "store" ? "店舗" : "担当者"}を変更できます。
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={groupBy === "store" ? "primary" : "outline"}
-            onClick={() => setGroupBy("store")}
-          >
-            <StoreIcon className="mr-1.5 size-4" />
-            店舗別
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={groupBy === "assignee" ? "primary" : "outline"}
-            onClick={() => setGroupBy("assignee")}
-          >
-            <UsersIcon className="mr-1.5 size-4" />
-            担当者別
-          </Button>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex h-10 items-center overflow-hidden rounded-lg border bg-white shadow-sm">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 rounded-none border-r"
+              onClick={() => changeDate(-1)}
+            >
+              <ChevronLeftIcon className="size-4" />
+              <span className="sr-only">前日</span>
+            </Button>
+            <div className="min-w-[152px] px-4 text-center text-sm font-semibold text-slate-800">
+              {format(new Date(`${selectedDateKey}T00:00:00`), "yyyy/MM/dd (E)", {
+                locale: ja,
+              })}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 rounded-none border-l"
+              onClick={() => changeDate(1)}
+            >
+              <ChevronRightIcon className="size-4" />
+              <span className="sr-only">翌日</span>
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-600">表示軸:</span>
+            <div className="flex rounded-lg border bg-white p-1 shadow-sm">
+              <Button
+                type="button"
+                size="sm"
+                variant={groupBy === "assignee" ? "primary" : "ghost"}
+                className="h-8"
+                onClick={() => setGroupBy("assignee")}
+              >
+                <UsersIcon className="size-4" />
+                担当者
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={groupBy === "store" ? "primary" : "ghost"}
+                className="h-8"
+                onClick={() => setGroupBy("store")}
+              >
+                <StoreIcon className="size-4" />
+                店舗
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="overflow-auto rounded-lg border bg-white">
+      <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-2 text-xs text-slate-600">
+        {Object.values(TaskStatus).map((taskStatus) => (
+          <span key={taskStatus} className="inline-flex items-center gap-1.5">
+            <span className={`size-2.5 rounded-full ${statusDotClasses[taskStatus]}`} />
+            {TASK_STATUS_LABELS[taskStatus]}
+          </span>
+        ))}
+      </div>
+
+      <div className="overflow-auto rounded-xl border bg-white shadow-sm">
+        <div
+          className="grid min-w-max"
+          style={{ gridTemplateColumns: `76px ${groups.length * GROUP_WIDTH}px` }}
+        >
+          <div className="sticky left-0 top-0 z-40 flex h-[72px] items-center justify-center border-b border-r bg-white text-sm font-bold text-slate-700">
+            時間
+          </div>
+
           <div
-            className="grid min-w-max"
-            style={{
-              gridTemplateColumns: `72px repeat(${groups.length}, minmax(210px, 1fr))`,
-            }}
+            className="sticky top-0 z-30 grid h-[72px] border-b bg-white"
+            style={{ gridTemplateColumns: `repeat(${groups.length}, ${GROUP_WIDTH}px)` }}
           >
-            <div className="sticky left-0 top-0 z-30 border-b border-r bg-slate-100 p-2 text-xs font-semibold text-slate-500">
-              時刻
-            </div>
             {groups.map((group) => (
               <div
                 key={group.id}
-                className="sticky top-0 z-20 border-b border-r bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700"
+                className="flex items-center justify-center gap-2 border-r px-4 text-sm font-bold text-slate-800"
               >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="size-2.5 rounded-full"
-                    style={{ backgroundColor: getStoreAccent(group.id) }}
+                {groupBy === "assignee" ? (
+                  <MemberAvatar name={group.name} className="size-8" />
+                ) : (
+                  <ProjectAvatar
+                    name={group.name}
+                    image={group.imageUrl}
+                    className="size-8 rounded-full"
+                    fallbackClassName="rounded-full"
                   />
-                  <span className="truncate">{group.name}</span>
-                </div>
+                )}
+                <span className="truncate">{group.name}</span>
+              </div>
+            ))}
+          </div>
+
+          <div
+            className="sticky left-0 z-20 border-r bg-white"
+            style={{ height: TIMELINE_HEIGHT }}
+          >
+            {HOURS.map((minutes, index) => (
+              <div
+                key={minutes}
+                className="absolute left-0 right-0 border-t px-3 pt-2 text-xs font-semibold text-slate-700"
+                style={{ top: Math.min(index * HOUR_HEIGHT, TIMELINE_HEIGHT - 1) }}
+              >
+                {minutesToTime(minutes)}
+              </div>
+            ))}
+          </div>
+
+          <div
+            ref={columnsRef}
+            className="relative grid"
+            style={{
+              height: TIMELINE_HEIGHT,
+              gridTemplateColumns: `repeat(${groups.length}, ${GROUP_WIDTH}px)`,
+            }}
+          >
+            {groups.map((group, groupIndex) => (
+              <div
+                key={group.id}
+                className="relative border-r"
+                style={{
+                  backgroundImage:
+                    "repeating-linear-gradient(to bottom, transparent 0, transparent 77px, rgb(226 232 240) 77px, rgb(226 232 240) 78px)",
+                }}
+              >
+                {(tasksByGroup.get(group.id) ?? []).map((task) => {
+                  const start = clamp(timeToMinutes(task.startTime), START_MINUTES, END_MINUTES);
+                  const duration = getTaskDurationMinutes(task.startTime, task.endTime);
+                  const top = ((start - START_MINUTES) / 60) * HOUR_HEIGHT;
+                  const height = Math.max(50, (duration / 60) * HOUR_HEIGHT - 6);
+                  const type = task.taskType ?? TaskType.OTHER;
+                  const isDragging = dragPreview?.task.$id === task.$id;
+
+                  return (
+                    <button
+                      key={task.$id}
+                      type="button"
+                      onPointerDown={(event) => startDrag(event, task, groupIndex)}
+                      onPointerMove={moveDrag}
+                      onPointerUp={finishDrag}
+                      onPointerCancel={cancelDrag}
+                      className={`absolute left-2 right-2 touch-none select-none overflow-hidden rounded-lg border p-3 text-left shadow-sm transition-shadow hover:shadow-md ${
+                        statusCardClasses[task.status]
+                      } ${isDragging ? "z-50 cursor-grabbing shadow-xl ring-2 ring-blue-300" : "z-10 cursor-grab"}`}
+                      style={{
+                        top,
+                        height,
+                        transform: isDragging
+                          ? `translate(${dragPreview.deltaX}px, ${dragPreview.deltaY}px)`
+                          : undefined,
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-blue-700">
+                        <span>
+                          {normalizeTime(task.startTime)} - {normalizeTime(task.endTime, "10:00")}
+                        </span>
+                        {task.isImportant && (
+                          <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] text-red-600">
+                            重要
+                          </span>
+                        )}
+                      </div>
+                      <p className={`mt-1 line-clamp-2 text-sm text-slate-900 ${task.isImportant ? "font-bold" : "font-semibold"}`}>
+                        {task.name}
+                      </p>
+                      <p className="mt-1.5 line-clamp-1 text-[11px] text-slate-600">
+                        {TASK_TYPE_ICONS[type]} {TASK_TYPE_LABELS[type]}
+                        {task.description ? ` ・ ${task.description}` : ""}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             ))}
 
-            {TIME_SLOTS.flatMap((time) => [
+            {dragPreview && (
               <div
-                key={`time-${time}`}
-                className="sticky left-0 z-10 min-h-[76px] border-b border-r bg-white px-2 py-2 text-xs font-medium text-slate-500"
+                className="pointer-events-none absolute z-40 rounded bg-blue-600 px-2 py-1 text-[10px] font-bold text-white shadow"
+                style={{
+                  left: dragPreview.targetGroupIndex * GROUP_WIDTH + 8,
+                  top:
+                    ((dragPreview.targetStartMinutes - START_MINUTES) / 60) *
+                    HOUR_HEIGHT,
+                }}
               >
-                {time}
-              </div>,
-              ...groups.map((group) => {
-                const key = `${group.id}__${time}`;
-                const tasks = taskMap.get(key) ?? [];
-
-                return (
-                  <Droppable droppableId={key} key={key}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={`min-h-[76px] border-b border-r p-1.5 transition-colors ${
-                          snapshot.isDraggingOver ? "bg-cyan-50" : "bg-white"
-                        }`}
-                      >
-                        {tasks.map((task, index) => {
-                          const type = task.taskType ?? TaskType.OTHER;
-                          return (
-                            <Draggable
-                              key={task.$id}
-                              draggableId={task.$id}
-                              index={index}
-                              isDragDisabled={isPending}
-                            >
-                              {(dragProvided, dragSnapshot) => (
-                                <button
-                                  type="button"
-                                  ref={dragProvided.innerRef}
-                                  {...dragProvided.draggableProps}
-                                  {...dragProvided.dragHandleProps}
-                                  onClick={() => open(task.$id)}
-                                  className={`mb-1.5 w-full rounded-md border bg-white p-2 text-left shadow-sm transition hover:border-cyan-300 hover:shadow ${
-                                    dragSnapshot.isDragging ? "rotate-1 shadow-lg" : ""
-                                  }`}
-                                  style={{
-                                    ...dragProvided.draggableProps.style,
-                                    borderLeftWidth: 4,
-                                    borderLeftColor: getStoreAccent(task.projectId),
-                                  }}
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <span
-                                      className={`line-clamp-2 text-xs text-slate-800 ${
-                                        task.isImportant ? "font-bold" : "font-medium"
-                                      }`}
-                                    >
-                                      {TASK_TYPE_ICONS[type]} {task.name}
-                                    </span>
-                                    <span className="shrink-0 text-[10px] text-slate-400">
-                                      {normalizeTime(task.startTime)}
-                                    </span>
-                                  </div>
-                                  <div className="mt-1 line-clamp-1 text-[10px] text-slate-500">
-                                    {TASK_TYPE_LABELS[type]}
-                                    {task.description ? ` ・ ${task.description}` : ""}
-                                  </div>
-                                </button>
-                              )}
-                            </Draggable>
-                          );
-                        })}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                );
-              }),
-            ])}
+                {groups[dragPreview.targetGroupIndex]?.name} ・ {minutesToTime(dragPreview.targetStartMinutes)}
+              </div>
+            )}
           </div>
         </div>
-      </DragDropContext>
+      </div>
 
       <p className="text-xs text-muted-foreground">
-        ※ MVPでは30分単位のドラッグ配置です。フォームからは5分単位で時刻を直接編集できます。
+        ※ ドラッグは30分単位でスナップします。タップすると詳細編集を開きます。
       </p>
     </div>
   );

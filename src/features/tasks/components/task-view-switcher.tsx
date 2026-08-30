@@ -8,7 +8,8 @@ import {
   PlusIcon,
 } from "lucide-react";
 import { useQueryState } from "nuqs";
-import { useCallback } from "react";
+import { format } from "date-fns";
+import { useCallback, useMemo } from "react";
 
 import { useProjectId } from "@/features/projects/hooks/use-project-id";
 import { useWorkspaceId } from "@/features/workspaces/hooks/use-workspace-id";
@@ -58,6 +59,28 @@ export const TaskViewSwitcher = ({
 
   const { open } = useCreateTaskModal();
   const taskData = tasks?.documents ?? [];
+  const effectiveProjectId = paramProjectId || projectId;
+
+  // Keep the UI filters authoritative even while React Query is swapping/refetching
+  // server results. This prevents a selected store from briefly showing tasks from
+  // other stores in the timeline or schedule views.
+  const filteredTaskData = useMemo(
+    () =>
+      taskData.filter((task) => {
+        if (effectiveProjectId && task.projectId !== effectiveProjectId) return false;
+        if (assigneeId && task.assigneeId !== assigneeId) return false;
+        if (status && task.status !== status) return false;
+        if (
+          dueDate &&
+          format(new Date(task.dueDate), "yyyy-MM-dd") !==
+            format(new Date(dueDate), "yyyy-MM-dd")
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [assigneeId, dueDate, effectiveProjectId, status, taskData]
+  );
 
   return (
     <Tabs
@@ -109,13 +132,13 @@ export const TaskViewSwitcher = ({
           ) : (
             <>
               <TabsContent value="kanban" className="mt-0">
-                <DataKanban data={taskData} onChange={onKanbanChange} />
+                <DataKanban data={filteredTaskData} onChange={onKanbanChange} />
               </TabsContent>
               <TabsContent value="timeline" className="mt-0">
-                <DataTimeline data={taskData} />
+                <DataTimeline data={filteredTaskData} />
               </TabsContent>
               <TabsContent value="schedule" className="mt-0 pb-4">
-                <DataSchedule data={taskData} />
+                <DataSchedule data={filteredTaskData} />
               </TabsContent>
             </>
           )}
