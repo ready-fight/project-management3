@@ -71,7 +71,7 @@ export const TaskViewSwitcher = ({
   );
 
   const { open } = useCreateTaskModal();
-  const taskData = tasks?.documents ?? [];
+  const taskData = useMemo(() => tasks?.documents ?? [], [tasks?.documents]);
   const effectiveProjectId = paramProjectId || projectId;
 
   // Keep the UI filters authoritative while React Query swaps/refetches results.
