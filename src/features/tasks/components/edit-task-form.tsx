@@ -4,7 +4,6 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
-import { MemberAvatar } from "@/features/members/components/member-avatar";
 import { ProjectAvatar } from "@/features/projects/components/project-avatar";
 
 import { cn } from "@/lib/utils";
@@ -39,6 +38,7 @@ import {
   TASK_TYPE_ICONS,
   TASK_TYPE_LABELS,
 } from "../constants";
+import { MemberCombobox } from "./member-combobox";
 import { normalizeTime } from "../task-utils";
 
 const formSchema = createTaskSchema.omit({ workspaceId: true });
@@ -194,23 +194,15 @@ export const EditTaskForm = ({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>担当者</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="担当者を選択" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {memberOptions.map((member) => (
-                          <SelectItem key={member.id} value={member.id}>
-                            <div className="flex items-center gap-x-2">
-                              <MemberAvatar className="size-6" name={member.name} />
-                              {member.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <MemberCombobox
+                        value={field.value}
+                        onChange={field.onChange}
+                        options={memberOptions}
+                        placeholder="担当者を選択"
+                        disabled={isPending}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
