@@ -10,12 +10,14 @@ import { cn } from "@/lib/utils";
 import { useCreateProjectModal } from "@/features/projects/hooks/use-create-project-modal";
 import { ProjectAvatar } from "@/features/projects/components/project-avatar";
 import { Button } from "@/components/ui/button";
+import { useWorkspacePermissions } from "@/features/workspaces/hooks/use-workspace-permissions";
 
 export const Projects = () => {
   const pathname = usePathname();
   const { open } = useCreateProjectModal();
   const workspaceId = useWorkspaceId();
   const { data } = useGetProjects({ workspaceId });
+  const { canManageStores } = useWorkspacePermissions();
 
   return (
     <div className="flex flex-col gap-1 px-1">
@@ -23,15 +25,17 @@ export const Projects = () => {
         <p className="text-[11px] font-bold tracking-wide text-slate-400">
           店舗
         </p>
-        <Button
-          onClick={open}
-          variant="ghost"
-          size="icon"
-          className="size-6 text-slate-400 hover:bg-cyan-50 hover:text-cyan-600"
-        >
-          <PlusIcon className="size-3.5" />
-          <span className="sr-only">店舗を追加</span>
-        </Button>
+        {canManageStores && (
+          <Button
+            onClick={open}
+            variant="ghost"
+            size="icon"
+            className="size-6 text-slate-400 hover:bg-cyan-50 hover:text-cyan-600"
+          >
+            <PlusIcon className="size-3.5" />
+            <span className="sr-only">店舗を追加</span>
+          </Button>
+        )}
       </div>
       {data?.documents.map((project) => {
         const href = `/workspaces/${workspaceId}/projects/${project.$id}`;

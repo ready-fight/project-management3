@@ -16,9 +16,10 @@ import { useCreateProjectModal } from "@/features/projects/hooks/use-create-proj
 import { Project } from "@/features/projects/types";
 import { useGetTasks } from "@/features/tasks/api/use-get-tasks";
 import { useCreateTaskModal } from "@/features/tasks/hooks/use-create-task-modal";
-import { TaskDocument } from "@/features/tasks/types";
+import { Task } from "@/features/tasks/types";
 import { useGetWorkspaceAnalytics } from "@/features/workspaces/api/use-get-workspace-analytics";
 import { useWorkspaceId } from "@/features/workspaces/hooks/use-workspace-id";
+import { useWorkspacePermissions } from "@/features/workspaces/hooks/use-workspace-permissions";
 
 import { formatDistanceToNow } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -66,16 +67,8 @@ export const WorkspaceIdClient = () => {
   );
 };
 
-type DashboardTask = TaskDocument & {
-  project?: {
-    $id: string;
-    name: string;
-    imageUrl?: string;
-  };
-};
-
 interface TaskListProps {
-  data: DashboardTask[];
+  data: Task[];
   total: number;
 }
 
@@ -135,15 +128,18 @@ interface ProjectListProps {
 export const ProjectList = ({ data, total }: ProjectListProps) => {
   const workspaceId = useWorkspaceId();
   const { open: createProject } = useCreateProjectModal();
+  const { canManageStores } = useWorkspacePermissions();
 
   return (
     <div className="flex flex-col gap-y-4 col-span-1">
       <div className="rounded-lg border bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between">
           <p className="text-lg font-semibold">店舗 ({total})</p>
-          <Button variant="secondary" size="icon" onClick={createProject}>
-            <PlusIcon className="size-4 text-neutral-400" />
-          </Button>
+          {canManageStores && (
+            <Button variant="secondary" size="icon" onClick={createProject}>
+              <PlusIcon className="size-4 text-neutral-400" />
+            </Button>
+          )}
         </div>
         <DottedSeparator className="my-4" />
         <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4">

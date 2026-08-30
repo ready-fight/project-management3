@@ -5,6 +5,7 @@ import { ID, Query } from "node-appwrite";
 import { z } from "zod";
 
 import { getMember } from "@/features/members/utils";
+import { MemberRole } from "@/features/members/types";
 import { TaskStatus } from "@/features/tasks/types";
 
 import { DATABASE_ID, IMAGES_BUCKET_ID, PROJECTS_ID, TASKS_ID } from "@/config";
@@ -31,7 +32,7 @@ const app = new Hono()
         userId: user.$id,
       });
 
-      if (!member) {
+      if (!member || member.role !== MemberRole.ADMIN) {
         return c.json({ error: "Unauthorized" }, 401);
       }
 
@@ -95,7 +96,11 @@ const app = new Hono()
       const projects = await databases.listDocuments<Project>(
         DATABASE_ID,
         PROJECTS_ID,
-        [Query.equal("workspaceId", workspaceId), Query.orderDesc("$createdAt")]
+        [
+          Query.equal("workspaceId", workspaceId),
+          Query.orderDesc("$createdAt"),
+          Query.limit(100),
+        ]
       );
 
       return c.json({ data: projects });
@@ -148,7 +153,7 @@ const app = new Hono()
         userId: user.$id,
       });
 
-      if (!member) {
+      if (!member || member.role !== MemberRole.ADMIN) {
         return c.json({ error: "Unauthorized" }, 401);
       }
 
@@ -201,7 +206,7 @@ const app = new Hono()
       userId: user.$id,
     });
 
-    if (!member) {
+    if (!member || member.role !== MemberRole.ADMIN) {
       return c.json({ error: "Unauthorized" }, 401);
     }
 

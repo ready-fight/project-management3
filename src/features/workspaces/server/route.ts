@@ -14,7 +14,7 @@ import {
 import { sessionMiddleware } from "@/lib/session-middleware";
 import { generateInviteCode } from "@/lib/utils";
 
-import { MemberRole } from "@/features/members/types";
+import { Member, MemberRole } from "@/features/members/types";
 import { getMember } from "@/features/members/utils";
 import { TaskStatus } from "@/features/tasks/types";
 
@@ -95,6 +95,21 @@ const app = new Hono()
       const user = c.get("user");
 
       const { name, image } = c.req.valid("form");
+
+      const memberships = await databases.listDocuments<Member>(
+        DATABASE_ID,
+        MEMBERS_ID,
+        [Query.equal("userId", user.$id), Query.limit(100)]
+      );
+      const canCreateWorkspace =
+        memberships.total === 0 ||
+        memberships.documents.some(
+          (membership) => membership.role === MemberRole.ADMIN
+        );
+
+      if (!canCreateWorkspace) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
 
       let uploadedImageUrl: string | undefined;
 

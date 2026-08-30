@@ -13,6 +13,7 @@ import { ProjectAvatar } from "@/features/projects/components/project-avatar";
 import { useProjectId } from "@/features/projects/hooks/use-project-id";
 import { TaskViewSwitcher } from "@/features/tasks/components/task-view-switcher";
 import { useGetProjectAnalytics } from "@/features/projects/api/use-get-project-analytics";
+import { useWorkspacePermissions } from "@/features/workspaces/hooks/use-workspace-permissions";
 
 export const ProjectIdClient = () => {
   const projectId = useProjectId();
@@ -21,6 +22,7 @@ export const ProjectIdClient = () => {
   });
   const { data: analytics, isLoading: isLoadingAnalytics } =
     useGetProjectAnalytics({ projectId });
+  const { canManageStores } = useWorkspacePermissions();
 
   const isLoading = isLoadingProject || isLoadingAnalytics;
 
@@ -43,16 +45,18 @@ export const ProjectIdClient = () => {
           />
           <p className="text-lg font-semibold">{project.name}</p>
         </div>
-        <div>
-          <Button variant="secondary" size="sm" asChild>
-            <Link
-              href={`/workspaces/${project.workspaceId}/projects/${project.$id}/settings`}
-            >
-              <PencilIcon className="size-4 mr-2" />
-              店舗を編集
-            </Link>
-          </Button>
-        </div>
+        {canManageStores && (
+          <div>
+            <Button variant="secondary" size="sm" asChild>
+              <Link
+                href={`/workspaces/${project.workspaceId}/projects/${project.$id}/settings`}
+              >
+                <PencilIcon className="size-4 mr-2" />
+                店舗を編集
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
       {analytics && <Analytics data={analytics} />}
       <TaskViewSwitcher hideProjectFilter={true} />

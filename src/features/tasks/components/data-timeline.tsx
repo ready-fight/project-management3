@@ -16,6 +16,7 @@ import { MemberAvatar } from "@/features/members/components/member-avatar";
 import { useGetMembers } from "@/features/members/api/use-get-members";
 import { ProjectAvatar } from "@/features/projects/components/project-avatar";
 import { useGetProjects } from "@/features/projects/api/use-get-projects";
+import { useProjectId } from "@/features/projects/hooks/use-project-id";
 import { useWorkspaceId } from "@/features/workspaces/hooks/use-workspace-id";
 
 import { useUpdateTask } from "../api/use-update-task";
@@ -89,7 +90,8 @@ interface DataTimelineProps {
 
 export const DataTimeline = ({ data }: DataTimelineProps) => {
   const workspaceId = useWorkspaceId();
-  const [groupBy, setGroupBy] = useState<GroupBy>("assignee");
+  const routeProjectId = useProjectId();
+  const [groupBy, setGroupBy] = useState<GroupBy>("store");
   const [dragPreview, setDragPreview] = useState<TimelineDrag | null>(null);
   const dragRef = useRef<TimelineDrag | null>(null);
   const columnsRef = useRef<HTMLDivElement | null>(null);
@@ -114,12 +116,32 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
     () =>
       data.filter((task) => {
         if (taskDateKey(task) !== selectedDateKey) return false;
-        if (projectId && task.projectId !== projectId) return false;
+        if (routeProjectId && task.projectId !== routeProjectId) return false;
+
+        // In 店舗 view the selected store is a focus, not a hard filter, so
+        // other stores remain visible as drag targets. In 担当者 view the same
+        // selector behaves as a normal store filter.
+        if (
+          groupBy === "assignee" &&
+          projectId &&
+          task.projectId !== projectId
+        ) {
+          return false;
+        }
+
         if (assigneeId && task.assigneeId !== assigneeId) return false;
         if (status && task.status !== status) return false;
         return true;
       }),
-    [assigneeId, data, projectId, selectedDateKey, status]
+    [
+      assigneeId,
+      data,
+      groupBy,
+      projectId,
+      routeProjectId,
+      selectedDateKey,
+      status,
+    ]
   );
 
   const groups = useMemo<Group[]>(() => {
@@ -131,9 +153,18 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
           imageUrl: project.imageUrl,
         })) ?? [];
 
-      return projectId
-        ? allStores.filter((project) => project.id === projectId)
-        : allStores;
+      if (routeProjectId) {
+        return allStores.filter((project) => project.id === routeProjectId);
+      }
+
+      // Keep every store available for cross-store drag/drop. If the user has
+      // selected a store, move it to the front and highlight it instead of
+      // removing the other columns.
+      return [...allStores].sort((a, b) => {
+        if (a.id === projectId) return -1;
+        if (b.id === projectId) return 1;
+        return a.name.localeCompare(b.name, "ja");
+      });
     }
 
     const allMembers =
@@ -145,7 +176,20 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
     return assigneeId
       ? allMembers.filter((member) => member.id === assigneeId)
       : allMembers;
-  }, [assigneeId, groupBy, members?.documents, projectId, projects?.documents]);
+  }, [
+    assigneeId,
+    groupBy,
+    members?.documents,
+    projectId,
+    projects?.documents,
+    routeProjectId,
+  ]);
+
+  const focusedStore = useMemo(
+    () => projects?.documents.find((project) => project.$id === projectId),
+    [projectId, projects?.documents]
+  );
+  const isStoreFocus = groupBy === "store" && Boolean(projectId) && !routeProjectId;
 
   const tasksByGroup = useMemo(() => {
     const grouped = new Map<string, Task[]>();
@@ -334,16 +378,6 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
               <Button
                 type="button"
                 size="sm"
-                variant={groupBy === "assignee" ? "primary" : "ghost"}
-                className="h-8"
-                onClick={() => setGroupBy("assignee")}
-              >
-                <UsersIcon className="size-4" />
-                担当者
-              </Button>
-              <Button
-                type="button"
-                size="sm"
                 variant={groupBy === "store" ? "primary" : "ghost"}
                 className="h-8"
                 onClick={() => setGroupBy("store")}
@@ -351,10 +385,44 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
                 <StoreIcon className="size-4" />
                 店舗
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={groupBy === "assignee" ? "primary" : "ghost"}
+                className="h-8"
+                onClick={() => setGroupBy("assignee")}
+              >
+                <UsersIcon className="size-4" />
+                担当者
+              </Button>
             </div>
           </div>
         </div>
       </div>
+
+      {isStoreFocus && (
+        <div className="flex flex-col gap-2 rounded-lg border border-cyan-200 bg-cyan-50/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-cyan-800">
+            <span className="font-bold">{focusedStore?.name ?? "選択中の店舗"}</span>
+            をフォーカス中です。他の店舗もドラッグ先として表示しています。
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 self-start text-cyan-700 hover:bg-cyan-100 hover:text-cyan-800 sm:self-auto"
+            onClick={() => setFilters({ projectId: null })}
+          >
+            フォーカス解除
+          </Button>
+        </div>
+      )}
+
+      {groupBy === "assignee" && projectId && !routeProjectId && (
+        <p className="rounded-lg border bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          担当者表示では、選択した店舗のタスクだけを表示しています。
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-2 text-xs text-slate-600">
         {Object.values(TaskStatus).map((taskStatus) => (
@@ -378,10 +446,17 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
             className="sticky top-0 z-30 grid h-[72px] border-b bg-white"
             style={{ gridTemplateColumns: `repeat(${groups.length}, ${GROUP_WIDTH}px)` }}
           >
-            {groups.map((group) => (
+            {groups.map((group) => {
+              const isFocusedGroup = isStoreFocus && group.id === projectId;
+
+              return (
               <div
                 key={group.id}
-                className="flex items-center justify-center gap-2 border-r px-4 text-sm font-bold text-slate-800"
+                className={`flex items-center justify-center gap-2 border-r px-4 text-sm font-bold ${
+                  isFocusedGroup
+                    ? "bg-cyan-50 text-cyan-800 ring-1 ring-inset ring-cyan-200"
+                    : "text-slate-800"
+                }`}
               >
                 {groupBy === "assignee" ? (
                   <MemberAvatar name={group.name} className="size-8" />
@@ -395,7 +470,8 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
                 )}
                 <span className="truncate">{group.name}</span>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <div
@@ -421,10 +497,15 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
               gridTemplateColumns: `repeat(${groups.length}, ${GROUP_WIDTH}px)`,
             }}
           >
-            {groups.map((group, groupIndex) => (
+            {groups.map((group, groupIndex) => {
+              const isFocusedGroup = isStoreFocus && group.id === projectId;
+
+              return (
               <div
                 key={group.id}
-                className="relative border-r"
+                className={`relative border-r ${
+                  isFocusedGroup ? "bg-cyan-50/20 ring-1 ring-inset ring-cyan-100" : ""
+                }`}
                 style={{
                   backgroundImage:
                     "repeating-linear-gradient(to bottom, transparent 0, transparent 77px, rgb(226 232 240) 77px, rgb(226 232 240) 78px)",
@@ -478,7 +559,8 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
                   );
                 })}
               </div>
-            ))}
+              );
+            })}
 
             {dragPreview && (
               <div

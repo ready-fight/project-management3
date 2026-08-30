@@ -12,6 +12,7 @@ import {
 import { usePathname } from "next/navigation";
 
 import { useWorkspaceId } from "@/features/workspaces/hooks/use-workspace-id";
+import { useWorkspacePermissions } from "@/features/workspaces/hooks/use-workspace-permissions";
 
 const routes = [
   {
@@ -31,6 +32,7 @@ const routes = [
     href: "/settings",
     icon: SettingsIcon,
     activeIcon: SettingsIcon,
+    adminOnly: true,
   },
   {
     label: "メンバー",
@@ -43,10 +45,11 @@ const routes = [
 export const Navigation = () => {
   const workspaceId = useWorkspaceId();
   const pathname = usePathname();
+  const { isAdmin } = useWorkspacePermissions();
 
   return (
     <ul className="flex flex-col gap-1">
-      {routes.map((item) => {
+      {routes.filter((item) => !item.adminOnly || isAdmin).map((item) => {
         const fullHref = `/workspaces/${workspaceId}${item.href}`;
         const isActive = pathname === fullHref;
         const Icon = isActive ? item.activeIcon : item.icon;

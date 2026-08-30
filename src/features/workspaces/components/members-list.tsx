@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { useWorkspacePermissions } from "@/features/workspaces/hooks/use-workspace-permissions";
 
 export const MembersList = () => {
   const workspaceId = useWorkspaceId();
@@ -31,6 +32,7 @@ export const MembersList = () => {
   );
 
   const { data } = useGetMembers({ workspaceId });
+  const { currentMember, isAdmin } = useWorkspacePermissions();
   const { mutate: deleteMember, isPending: isDeletingMember } = useDeleteMember();
   const { mutate: updateMember, isPending: isUpdatingMember } = useUpdateMember();
 
@@ -38,13 +40,22 @@ export const MembersList = () => {
     updateMember({ json: { role }, param: { memberId } });
   };
 
-  const handleDeleteMember = async (memberId: string) => {
+  const handleDeleteMember = async (memberId: string, isSelf: boolean) => {
     const ok = await confirm();
     if (!ok) return;
 
     deleteMember(
       { param: { memberId } },
-      { onSuccess: () => window.location.reload() }
+      {
+        onSuccess: () => {
+          if (isSelf) {
+            window.location.href = "/";
+            return;
+          }
+
+          window.location.reload();
+        },
+      }
     );
   };
 
@@ -62,36 +73,84 @@ export const MembersList = () => {
       </CardHeader>
       <div className="px-7"><DottedSeparator /></div>
       <CardContent className="p-7">
-        {data?.documents.map((member, index) => (
-          <Fragment key={member.$id}>
-            <div className="flex items-center gap-2">
-              <MemberAvatar className="size-10" fallbackClassName="text-lg" name={member.name} />
-              <div className="flex flex-col">
-                <p className="text-sm font-medium">{member.name}</p>
-                <p className="text-xs text-muted-foreground">{member.email}</p>
+        {data?.documents.map((member, index) => {
+          const isSelf = currentMember?.$id === member.$id;
+          const canChangeRole = isAdmin;
+          const canRemoveMember = isAdmin || isSelf;
+          const showActions = canChangeRole || canRemoveMember;
+
+          return (
+            <Fragment key={member.$id}>
+              <div className="flex items-center gap-2">
+                <MemberAvatar
+                  className="size-10"
+                  fallbackClassName="text-lg"
+                  name={member.name}
+                />
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">{member.name}</p>
+                    {isSelf && (
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                        自分
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{member.email}</p>
+                </div>
+                <span className="ml-auto rounded-full border bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-500">
+                  {member.role === MemberRole.ADMIN ? "ADMIN" : "MEMBER"}
+                </span>
+
+                {showActions && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="secondary" size="icon">
+                        <MoreVerticalIcon className="size-4 text-muted-foreground" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent side="bottom" align="end">
+                      {canChangeRole && member.role !== MemberRole.ADMIN && (
+                        <DropdownMenuItem
+                          className="font-medium"
+                          onClick={() =>
+                            handleUpdateMember(member.$id, MemberRole.ADMIN)
+                          }
+                          disabled={isUpdatingMember}
+                        >
+                          管理者に変更
+                        </DropdownMenuItem>
+                      )}
+                      {canChangeRole && member.role !== MemberRole.MEMBER && (
+                        <DropdownMenuItem
+                          className="font-medium"
+                          onClick={() =>
+                            handleUpdateMember(member.$id, MemberRole.MEMBER)
+                          }
+                          disabled={isUpdatingMember}
+                        >
+                          メンバーに変更
+                        </DropdownMenuItem>
+                      )}
+                      {canRemoveMember && (
+                        <DropdownMenuItem
+                          className="font-medium text-red-600"
+                          onClick={() => handleDeleteMember(member.$id, isSelf)}
+                          disabled={isDeletingMember}
+                        >
+                          {isSelf ? "ワークスペースから退出" : `${member.name} を削除`}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="ml-auto" variant="secondary" size="icon">
-                    <MoreVerticalIcon className="size-4 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="bottom" align="end">
-                  <DropdownMenuItem className="font-medium" onClick={() => handleUpdateMember(member.$id, MemberRole.ADMIN)} disabled={isUpdatingMember}>
-                    管理者に変更
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="font-medium" onClick={() => handleUpdateMember(member.$id, MemberRole.MEMBER)} disabled={isUpdatingMember}>
-                    メンバーに変更
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="font-medium text-red-600" onClick={() => handleDeleteMember(member.$id)} disabled={isDeletingMember}>
-                    {member.name} を削除
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            {index < data.documents.length - 1 && <Separator className="my-2.5" />}
-          </Fragment>
-        ))}
+              {index < data.documents.length - 1 && (
+                <Separator className="my-2.5" />
+              )}
+            </Fragment>
+          );
+        })}
       </CardContent>
     </Card>
   );

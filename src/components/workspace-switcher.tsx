@@ -15,12 +15,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useWorkspacePermissions } from "@/features/workspaces/hooks/use-workspace-permissions";
 
 export const WorkspaceSwitcher = () => {
   const workspaceId = useWorkspaceId();
   const router = useRouter();
   const { data: workspaces } = useGetWorkspaces();
   const { open } = useCreateWorkspaceModal();
+  const { canCreateWorkspace } = useWorkspacePermissions();
 
   const onSelect = (id: string) => {
     router.push(`/workspaces/${id}`);
@@ -32,15 +34,17 @@ export const WorkspaceSwitcher = () => {
         <p className="text-[11px] font-bold tracking-wide text-slate-400">
           ワークスペース
         </p>
-        <Button
-          onClick={open}
-          variant="ghost"
-          size="icon"
-          className="size-6 text-slate-400 hover:bg-cyan-50 hover:text-cyan-600"
-        >
-          <PlusIcon className="size-3.5" />
-          <span className="sr-only">ワークスペースを追加</span>
-        </Button>
+        {canCreateWorkspace && (
+          <Button
+            onClick={open}
+            variant="ghost"
+            size="icon"
+            className="size-6 text-slate-400 hover:bg-cyan-50 hover:text-cyan-600"
+          >
+            <PlusIcon className="size-3.5" />
+            <span className="sr-only">ワークスペースを追加</span>
+          </Button>
+        )}
       </div>
       <Select onValueChange={onSelect} value={workspaceId}>
         <SelectTrigger className="h-10 w-full border-slate-200 bg-slate-50 px-2.5 text-sm font-medium shadow-none focus:ring-cyan-500">
