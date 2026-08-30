@@ -95,11 +95,7 @@ const app = new Hono()
       const projects = await databases.listDocuments<Project>(
         DATABASE_ID,
         PROJECTS_ID,
-        [
-          Query.equal("workspaceId", workspaceId),
-          Query.orderDesc("$createdAt"),
-          Query.limit(100),
-        ]
+        [Query.equal("workspaceId", workspaceId), Query.orderDesc("$createdAt")]
       );
 
       return c.json({ data: projects });
