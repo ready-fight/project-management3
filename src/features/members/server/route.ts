@@ -33,6 +33,7 @@ const app = new Hono()
 
       const members = await databases.listDocuments<Member>(DATABASE_ID, MEMBERS_ID, [
         Query.equal("workspaceId", workspaceId),
+        Query.limit(100),
       ]);
 
       const populatedMembers = await Promise.all(
