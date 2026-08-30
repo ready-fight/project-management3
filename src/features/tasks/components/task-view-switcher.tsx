@@ -6,6 +6,9 @@ import {
   LayoutGridIcon,
   LoaderIcon,
   PlusIcon,
+  RefreshCwIcon,
+  WifiIcon,
+  WifiOffIcon,
 } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { format } from "date-fns";
@@ -25,6 +28,7 @@ import { DataTimeline } from "./data-timeline";
 import { useGetTasks } from "../api/use-get-tasks";
 import { useCreateTaskModal } from "../hooks/use-create-task-modal";
 import { useTaskFilters } from "../hooks/use-task-filters";
+import { useTaskRealtime } from "../hooks/use-task-realtime";
 import { TaskStatus } from "../types";
 import { useBulkUpdateTasks } from "../api/use-bulk-update-tasks";
 
@@ -41,13 +45,19 @@ export const TaskViewSwitcher = ({
 
   const workspaceId = useWorkspaceId();
   const paramProjectId = useProjectId();
-  const { data: tasks, isLoading: isLoadingTasks } = useGetTasks({
+  const { status: syncStatus } = useTaskRealtime({ workspaceId });
+  const {
+    data: tasks,
+    isLoading: isLoadingTasks,
+    isFetching: isFetchingTasks,
+    refetch: refetchTasks,
+  } = useGetTasks({
     workspaceId,
     projectId: paramProjectId || projectId,
     assigneeId,
     status,
     dueDate,
-    live: true,
+    fallbackRefresh: syncStatus === "fallback",
   });
 
   const onKanbanChange = useCallback(
@@ -113,10 +123,53 @@ export const TaskViewSwitcher = ({
               Iqubeスケジュール
             </TabsTrigger>
           </TabsList>
-          <Button onClick={open} size="sm" className="h-9 w-full lg:w-auto">
-            <PlusIcon className="mr-1.5 size-4" />
-            タスクを追加
-          </Button>
+          <div className="flex w-full items-center gap-2 lg:w-auto">
+            <div
+              className={`hidden h-9 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium sm:flex ${
+                syncStatus === "realtime"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : syncStatus === "fallback"
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-slate-200 bg-slate-50 text-slate-500"
+              }`}
+              title={
+                syncStatus === "realtime"
+                  ? "Appwrite Realtimeで他ユーザーの変更を同期します"
+                  : syncStatus === "fallback"
+                    ? "Realtimeが利用できないため30分ごとの安全同期を使用しています"
+                    : "Realtime接続を確認しています"
+              }
+            >
+              {syncStatus === "realtime" ? (
+                <WifiIcon className="size-3.5" />
+              ) : (
+                <WifiOffIcon className="size-3.5" />
+              )}
+              {syncStatus === "realtime"
+                ? "リアルタイム同期"
+                : syncStatus === "fallback"
+                  ? "30分同期"
+                  : "同期確認中"}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 px-2.5"
+              onClick={() => void refetchTasks()}
+              disabled={isFetchingTasks}
+              title="タスクを再読み込み"
+            >
+              <RefreshCwIcon
+                className={`size-4 ${isFetchingTasks ? "animate-spin" : ""}`}
+              />
+              <span className="sr-only">再読み込み</span>
+            </Button>
+            <Button onClick={open} size="sm" className="h-9 flex-1 lg:flex-none">
+              <PlusIcon className="mr-1.5 size-4" />
+              タスクを追加
+            </Button>
+          </div>
         </div>
 
         <div className="border-b bg-slate-50/70 px-4 py-3">

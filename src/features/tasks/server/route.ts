@@ -75,30 +75,28 @@ const app = new Hono()
       const query = [
         Query.equal("workspaceId", workspaceId),
         Query.orderDesc("$createdAt"),
+        // Appwrite defaults list queries to 25 documents. The task views need a
+        // useful working set without repeatedly requesting pages in the browser.
+        Query.limit(100),
       ];
 
       if (projectId) {
-        console.log("projectId: ", projectId);
         query.push(Query.equal("projectId", projectId));
       }
 
       if (status) {
-        console.log("status: ", status);
         query.push(Query.equal("status", status));
       }
 
       if (assigneeId) {
-        console.log("assigneeId: ", assigneeId);
         query.push(Query.equal("assigneeId", assigneeId));
       }
 
       if (dueDate) {
-        console.log("dueDate: ", dueDate);
         query.push(Query.equal("dueDate", dueDate));
       }
 
       if (search) {
-        console.log("search: ", search);
         query.push(Query.search("name", search));
       }
 
@@ -108,20 +106,28 @@ const app = new Hono()
         query
       );
 
-      const projectIds = tasks.documents.map((task) => task.projectId);
-      const assigneeIds = tasks.documents.map((task) => task.assigneeId);
+      if (tasks.documents.length === 0) {
+        return c.json({ data: tasks });
+      }
 
-      const projects = await databases.listDocuments<Project>(
-        DATABASE_ID,
-        PROJECTS_ID,
-        projectIds.length > 0 ? [Query.contains("$id", projectIds)] : []
-      );
+      // Resolve each related store/member only once even when many tasks share it.
+      const projectIds = [
+        ...new Set(tasks.documents.map((task) => task.projectId)),
+      ];
+      const assigneeIds = [
+        ...new Set(tasks.documents.map((task) => task.assigneeId)),
+      ];
 
-      const members = await databases.listDocuments<Member>(
-        DATABASE_ID,
-        MEMBERS_ID,
-        assigneeIds.length > 0 ? [Query.contains("$id", assigneeIds)] : []
-      );
+      const [projects, members] = await Promise.all([
+        databases.listDocuments<Project>(DATABASE_ID, PROJECTS_ID, [
+          Query.equal("$id", projectIds),
+          Query.limit(100),
+        ]),
+        databases.listDocuments<Member>(DATABASE_ID, MEMBERS_ID, [
+          Query.equal("$id", assigneeIds),
+          Query.limit(100),
+        ]),
+      ]);
 
       const assignees = await Promise.all(
         members.documents.map(async (member) => {

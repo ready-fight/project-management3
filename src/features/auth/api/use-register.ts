@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { InferRequestType, InferResponseType } from "hono";
 
 import { client } from "@/lib/rpc";
+import { ensureBrowserAppwriteSession } from "@/lib/appwrite-browser";
 import { useRouter } from "next/navigation";
 
 type ResponseType = InferResponseType<
@@ -18,7 +19,23 @@ export const useRegister = () => {
   const mutation = useMutation<ResponseType, Error, RequestType>({
     mutationFn: async ({ json }) => {
       const response = await client.api.auth.register.$post({ json });
-      return await response.json();
+
+      if (!response.ok) {
+        throw new Error("Failed to sign up.");
+      }
+
+      const result = await response.json();
+
+      try {
+        await ensureBrowserAppwriteSession(json.email, json.password);
+      } catch (error) {
+        console.warn(
+          "Registered, but browser Appwrite session could not be created for Realtime.",
+          error
+        );
+      }
+
+      return result;
     },
     onSuccess: () => {
       toast.success("Signed up.");
