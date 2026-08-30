@@ -116,15 +116,14 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
     () =>
       data.filter((task) => {
         if (taskDateKey(task) !== selectedDateKey) return false;
-        if (routeProjectId && task.projectId !== routeProjectId) return false;
 
-        // In 店舗 view the selected store is a focus, not a hard filter, so
-        // other stores remain visible as drag targets. In 担当者 view the same
-        // selector behaves as a normal store filter.
+        // In 店舗 view, a selected/route store is only the active focus.
+        // In 担当者 view, the active store remains a real task filter.
+        const activeStoreId = routeProjectId || projectId;
         if (
           groupBy === "assignee" &&
-          projectId &&
-          task.projectId !== projectId
+          activeStoreId &&
+          task.projectId !== activeStoreId
         ) {
           return false;
         }
@@ -153,16 +152,13 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
           imageUrl: project.imageUrl,
         })) ?? [];
 
-      if (routeProjectId) {
-        return allStores.filter((project) => project.id === routeProjectId);
-      }
+      // Keep every store available for cross-store drag/drop. The active
+      // store can come from either the current store route or the shared filter.
+      const activeStoreId = routeProjectId || projectId;
 
-      // Keep every store available for cross-store drag/drop. If the user has
-      // selected a store, move it to the front and highlight it instead of
-      // removing the other columns.
       return [...allStores].sort((a, b) => {
-        if (a.id === projectId) return -1;
-        if (b.id === projectId) return 1;
+        if (a.id === activeStoreId) return -1;
+        if (b.id === activeStoreId) return 1;
         return a.name.localeCompare(b.name, "ja");
       });
     }
@@ -185,11 +181,12 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
     routeProjectId,
   ]);
 
+  const activeStoreId = routeProjectId || projectId;
   const focusedStore = useMemo(
-    () => projects?.documents.find((project) => project.$id === projectId),
-    [projectId, projects?.documents]
+    () => projects?.documents.find((project) => project.$id === activeStoreId),
+    [activeStoreId, projects?.documents]
   );
-  const isStoreFocus = groupBy === "store" && Boolean(projectId) && !routeProjectId;
+  const isStoreFocus = groupBy === "store" && Boolean(activeStoreId);
 
   const tasksByGroup = useMemo(() => {
     const grouped = new Map<string, Task[]>();
@@ -406,21 +403,23 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
             <span className="font-bold">{focusedStore?.name ?? "選択中の店舗"}</span>
             をフォーカス中です。他の店舗もドラッグ先として表示しています。
           </p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 self-start text-cyan-700 hover:bg-cyan-100 hover:text-cyan-800 sm:self-auto"
-            onClick={() => setFilters({ projectId: null })}
-          >
-            フォーカス解除
-          </Button>
+          {!routeProjectId && projectId && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 self-start text-cyan-700 hover:bg-cyan-100 hover:text-cyan-800 sm:self-auto"
+              onClick={() => setFilters({ projectId: null })}
+            >
+              フォーカス解除
+            </Button>
+          )}
         </div>
       )}
 
-      {groupBy === "assignee" && projectId && !routeProjectId && (
+      {groupBy === "assignee" && activeStoreId && (
         <p className="rounded-lg border bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          担当者表示では、選択した店舗のタスクだけを表示しています。
+          担当者表示では、アクティブな店舗のタスクだけを表示しています。
         </p>
       )}
 
@@ -447,7 +446,7 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
             style={{ gridTemplateColumns: `repeat(${groups.length}, ${GROUP_WIDTH}px)` }}
           >
             {groups.map((group) => {
-              const isFocusedGroup = isStoreFocus && group.id === projectId;
+              const isFocusedGroup = isStoreFocus && group.id === activeStoreId;
 
               return (
               <div
@@ -498,7 +497,7 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
             }}
           >
             {groups.map((group, groupIndex) => {
-              const isFocusedGroup = isStoreFocus && group.id === projectId;
+              const isFocusedGroup = isStoreFocus && group.id === activeStoreId;
 
               return (
               <div

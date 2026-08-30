@@ -45,9 +45,13 @@ export const TaskViewSwitcher = ({
 
   const workspaceId = useWorkspaceId();
   const paramProjectId = useProjectId();
-  const timelineUsesStoreFocus = view === "timeline" && !paramProjectId;
-  const queryProjectId =
-    paramProjectId || (timelineUsesStoreFocus ? undefined : projectId);
+  // The timeline always needs all stores available as drag targets.
+  // A route/filter store becomes the active highlighted store instead of
+  // restricting the query while the timeline is open.
+  const timelineUsesStoreFocus = view === "timeline";
+  const queryProjectId = timelineUsesStoreFocus
+    ? undefined
+    : paramProjectId || projectId;
   const { status: syncStatus } = useTaskRealtime({ workspaceId });
   const {
     data: tasks,
