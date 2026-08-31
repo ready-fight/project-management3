@@ -24,7 +24,6 @@ import { useUpdateTask } from "../api/use-update-task";
 import { TASK_STATUS_LABELS, TASK_TYPE_ICONS, TASK_TYPE_LABELS } from "../constants";
 import { useEditTaskModal } from "../hooks/use-edit-task-modal";
 import { useTaskFilters } from "../hooks/use-task-filters";
-import { MemberTimelineHours } from "./member-timeline-hours";
 import {
   getTaskDurationMinutes,
   minutesToTime,
@@ -101,7 +100,7 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
   const [{ projectId, assigneeId, status, dueDate }, setFilters] = useTaskFilters();
   const { mutate: updateTask, isPending } = useUpdateTask();
   const { open } = useEditTaskModal();
-  const { currentMember, canManageMembers } = useWorkspacePermissions();
+  const { currentMember } = useWorkspacePermissions();
   const { data: projects } = useGetProjects({ workspaceId });
   const { data: members } = useGetMembers({ workspaceId });
 
@@ -190,7 +189,21 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
     [activeStoreId, projects?.documents]
   );
   const isStoreFocus = groupBy === "store" && Boolean(activeStoreId);
-  const timelineHeaderHeight = groupBy === "assignee" ? 108 : 72;
+  const timelineHeaderHeight = 72;
+  const personalStartMinutes = clamp(
+    timeToMinutes(currentMember?.timelineStartTime ?? "09:00"),
+    START_MINUTES,
+    END_MINUTES
+  );
+  const personalEndMinutes = clamp(
+    timeToMinutes(currentMember?.timelineEndTime ?? "18:00"),
+    START_MINUTES,
+    END_MINUTES
+  );
+  const personalBeforeHeight =
+    ((personalStartMinutes - START_MINUTES) / 60) * HOUR_HEIGHT;
+  const personalAfterTop =
+    ((personalEndMinutes - START_MINUTES) / 60) * HOUR_HEIGHT;
 
   const tasksByGroup = useMemo(() => {
     const grouped = new Map<string, Task[]>();
@@ -457,49 +470,27 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
           >
             {groups.map((group) => {
               const isFocusedGroup = isStoreFocus && group.id === activeStoreId;
-              const member =
-                groupBy === "assignee"
-                  ? members?.documents.find((item) => item.$id === group.id)
-                  : undefined;
-              const canEditTimelineHours =
-                groupBy === "assignee" &&
-                Boolean(
-                  canManageMembers ||
-                    (currentMember && currentMember.$id === group.id)
-                );
 
               return (
                 <div
                   key={group.id}
-                  className={`flex flex-col items-center justify-center border-r px-3 text-sm font-bold ${
+                  className={`flex items-center justify-center gap-2 border-r px-4 text-sm font-bold ${
                     isFocusedGroup
                       ? "bg-cyan-50 text-cyan-800 ring-1 ring-inset ring-cyan-200"
                       : "text-slate-800"
                   }`}
                 >
-                  <div className="flex min-w-0 items-center justify-center gap-2">
-                    {groupBy === "assignee" ? (
-                      <MemberAvatar name={group.name} className="size-8" />
-                    ) : (
-                      <ProjectAvatar
-                        name={group.name}
-                        image={group.imageUrl}
-                        className="size-8 rounded-full"
-                        fallbackClassName="rounded-full"
-                      />
-                    )}
-                    <span className="truncate">{group.name}</span>
-                  </div>
-
-                  {groupBy === "assignee" && member && (
-                    <MemberTimelineHours
-                      memberId={member.$id}
-                      workspaceId={workspaceId}
-                      initialStartTime={member.timelineStartTime}
-                      initialEndTime={member.timelineEndTime}
-                      canEdit={canEditTimelineHours}
+                  {groupBy === "assignee" ? (
+                    <MemberAvatar name={group.name} className="size-8" />
+                  ) : (
+                    <ProjectAvatar
+                      name={group.name}
+                      image={group.imageUrl}
+                      className="size-8 rounded-full"
+                      fallbackClassName="rounded-full"
                     />
                   )}
+                  <span className="truncate">{group.name}</span>
                 </div>
               );
             })}
@@ -509,10 +500,22 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
             className="sticky left-0 z-20 border-r bg-white"
             style={{ height: TIMELINE_HEIGHT }}
           >
+            {personalBeforeHeight > 0 && (
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 z-0 bg-slate-200/50"
+                style={{ height: personalBeforeHeight }}
+              />
+            )}
+            {personalAfterTop < TIMELINE_HEIGHT && (
+              <div
+                className="pointer-events-none absolute inset-x-0 bottom-0 z-0 bg-slate-200/50"
+                style={{ height: TIMELINE_HEIGHT - personalAfterTop }}
+              />
+            )}
             {HOURS.map((minutes, index) => (
               <div
                 key={minutes}
-                className="absolute left-0 right-0 border-t px-3 pt-2 text-xs font-semibold text-slate-700"
+                className="absolute left-0 right-0 z-10 border-t px-3 pt-2 text-xs font-semibold text-slate-700"
                 style={{ top: Math.min(index * HOUR_HEIGHT, TIMELINE_HEIGHT - 1) }}
               >
                 {minutesToTime(minutes)}
@@ -542,42 +545,18 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
                     "repeating-linear-gradient(to bottom, transparent 0, transparent 77px, rgb(226 232 240) 77px, rgb(226 232 240) 78px)",
                 }}
               >
-                {groupBy === "assignee" && (() => {
-                  const member = members?.documents.find(
-                    (item) => item.$id === group.id
-                  );
-                  const workStart = clamp(
-                    timeToMinutes(member?.timelineStartTime ?? "09:00"),
-                    START_MINUTES,
-                    END_MINUTES
-                  );
-                  const workEnd = clamp(
-                    timeToMinutes(member?.timelineEndTime ?? "18:00"),
-                    START_MINUTES,
-                    END_MINUTES
-                  );
-                  const beforeHeight =
-                    ((workStart - START_MINUTES) / 60) * HOUR_HEIGHT;
-                  const afterTop =
-                    ((workEnd - START_MINUTES) / 60) * HOUR_HEIGHT;
-
-                  return (
-                    <>
-                      {beforeHeight > 0 && (
-                        <div
-                          className="pointer-events-none absolute inset-x-0 top-0 z-[1] bg-slate-200/45"
-                          style={{ height: beforeHeight }}
-                        />
-                      )}
-                      {afterTop < TIMELINE_HEIGHT && (
-                        <div
-                          className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-slate-200/45"
-                          style={{ height: TIMELINE_HEIGHT - afterTop }}
-                        />
-                      )}
-                    </>
-                  );
-                })()}
+                {personalBeforeHeight > 0 && (
+                  <div
+                    className="pointer-events-none absolute inset-x-0 top-0 z-[1] bg-slate-200/45"
+                    style={{ height: personalBeforeHeight }}
+                  />
+                )}
+                {personalAfterTop < TIMELINE_HEIGHT && (
+                  <div
+                    className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-slate-200/45"
+                    style={{ height: TIMELINE_HEIGHT - personalAfterTop }}
+                  />
+                )}
 
                 {(tasksByGroup.get(group.id) ?? []).map((task) => {
                   const start = clamp(timeToMinutes(task.startTime), START_MINUTES, END_MINUTES);

@@ -19,12 +19,17 @@ import { useTaskFilters } from "../hooks/use-task-filters";
 import { TaskStatus } from "../types";
 import { TASK_STATUS_LABELS } from "../constants";
 import { MemberFilterCombobox } from "./member-filter-combobox";
+import { TimelineHoursFilter } from "./timeline-hours-filter";
 
 interface DataFiltersProps {
   hideProjectFilter?: boolean;
+  showTimelineHours?: boolean;
 }
 
-export const DataFilters = ({ hideProjectFilter }: DataFiltersProps) => {
+export const DataFilters = ({
+  hideProjectFilter,
+  showTimelineHours = false,
+}: DataFiltersProps) => {
   const workspaceId = useWorkspaceId();
   const { data: projects, isLoading: isLoadingProjects } = useGetProjects({
     workspaceId,
@@ -116,6 +121,8 @@ export const DataFilters = ({ hideProjectFilter }: DataFiltersProps) => {
           ))}
         </SelectContent>
       </Select>
+
+      {showTimelineHours && <TimelineHoursFilter workspaceId={workspaceId} />}
 
       {hasFilters && (
         <Button
