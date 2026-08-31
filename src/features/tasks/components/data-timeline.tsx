@@ -518,13 +518,13 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
           >
             {personalBeforeHeight > 0 && (
               <div
-                className="pointer-events-none absolute inset-x-0 top-0 z-0 bg-slate-200/70"
+                className="pointer-events-none absolute inset-x-0 top-0 z-0 bg-slate-200/60"
                 style={{ height: personalBeforeHeight }}
               />
             )}
             {personalAfterTop < TIMELINE_HEIGHT && (
               <div
-                className="pointer-events-none absolute inset-x-0 bottom-0 z-0 bg-slate-200/70"
+                className="pointer-events-none absolute inset-x-0 bottom-0 z-0 bg-slate-200/60"
                 style={{ height: TIMELINE_HEIGHT - personalAfterTop }}
               />
             )}
@@ -563,13 +563,13 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
               >
                 {personalBeforeHeight > 0 && (
                   <div
-                    className="pointer-events-none absolute inset-x-0 top-0 z-[1] bg-slate-200/65"
+                    className="pointer-events-none absolute inset-x-0 top-0 z-[1] bg-slate-200/55"
                     style={{ height: personalBeforeHeight }}
                   />
                 )}
                 {personalAfterTop < TIMELINE_HEIGHT && (
                   <div
-                    className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-slate-200/65"
+                    className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-slate-200/55"
                     style={{ height: TIMELINE_HEIGHT - personalAfterTop }}
                   />
                 )}
