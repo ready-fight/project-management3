@@ -6,9 +6,9 @@ import {
   LayoutGridIcon,
   LoaderIcon,
   PlusIcon,
-  RefreshCwIcon,
-  WifiIcon,
-  WifiOffIcon,
+  // RefreshCwIcon,
+  // WifiIcon,
+  // WifiOffIcon,
 } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { format } from "date-fns";
@@ -56,8 +56,8 @@ export const TaskViewSwitcher = ({
   const {
     data: tasks,
     isLoading: isLoadingTasks,
-    isFetching: isFetchingTasks,
-    refetch: refetchTasks,
+    // isFetching: isFetchingTasks,
+    // refetch: refetchTasks,
   } = useGetTasks({
     workspaceId,
     projectId: queryProjectId,
