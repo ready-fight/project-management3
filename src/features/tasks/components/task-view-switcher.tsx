@@ -16,6 +16,7 @@ import { useCallback, useMemo } from "react";
 
 import { useProjectId } from "@/features/projects/hooks/use-project-id";
 import { useWorkspaceId } from "@/features/workspaces/hooks/use-workspace-id";
+import { useWorkspacePermissions } from "@/features/workspaces/hooks/use-workspace-permissions";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,6 +32,7 @@ import { useTaskFilters } from "../hooks/use-task-filters";
 import { useTaskRealtime } from "../hooks/use-task-realtime";
 import { TaskStatus } from "../types";
 import { useBulkUpdateTasks } from "../api/use-bulk-update-tasks";
+import { normalizeTime, timeToMinutes } from "../task-utils";
 
 interface TaskViewSwitcherProps {
   hideProjectFilter?: boolean;
@@ -45,6 +47,13 @@ export const TaskViewSwitcher = ({
 
   const workspaceId = useWorkspaceId();
   const paramProjectId = useProjectId();
+  const { currentMember } = useWorkspacePermissions();
+  const personalStartMinutes = timeToMinutes(
+    currentMember?.timelineStartTime ?? "09:00"
+  );
+  const personalEndMinutes = timeToMinutes(
+    currentMember?.timelineEndTime ?? "18:00"
+  );
   // The timeline always needs all stores available as drag targets.
   // A route/filter store becomes the active highlighted store instead of
   // restricting the query while the timeline is open.
@@ -100,12 +109,27 @@ export const TaskViewSwitcher = ({
         ) {
           return false;
         }
+
+        // 表示時間 is a shared filter for カンバン / 時系列 / Iqube.
+        // A task must fit completely inside the logged-in user's saved range.
+        const taskStartMinutes = timeToMinutes(
+          normalizeTime(task.startTime, "09:00")
+        );
+        const taskEndMinutes = timeToMinutes(
+          normalizeTime(task.endTime, "10:00")
+        );
+
+        if (taskStartMinutes < personalStartMinutes) return false;
+        if (taskEndMinutes > personalEndMinutes) return false;
+
         return true;
       }),
     [
       assigneeId,
       dueDate,
       effectiveProjectId,
+      personalEndMinutes,
+      personalStartMinutes,
       status,
       taskData,
       timelineUsesStoreFocus,
@@ -195,7 +219,7 @@ export const TaskViewSwitcher = ({
         <div className="border-b bg-slate-50/70 px-4 py-3">
           <DataFilters
             hideProjectFilter={hideProjectFilter}
-            showTimelineHours={view === "timeline"}
+            showTimelineHours
           />
         </div>
 

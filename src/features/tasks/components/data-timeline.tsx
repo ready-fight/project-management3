@@ -114,6 +114,17 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
     return firstTaskDate ?? format(new Date(), "yyyy-MM-dd");
   }, [data, dueDate]);
 
+  const personalStartMinutes = clamp(
+    timeToMinutes(currentMember?.timelineStartTime ?? "09:00"),
+    START_MINUTES,
+    END_MINUTES
+  );
+  const personalEndMinutes = clamp(
+    timeToMinutes(currentMember?.timelineEndTime ?? "18:00"),
+    START_MINUTES,
+    END_MINUTES
+  );
+
   const visibleTasks = useMemo(
     () =>
       data.filter((task) => {
@@ -132,12 +143,27 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
 
         if (assigneeId && task.assigneeId !== assigneeId) return false;
         if (status && task.status !== status) return false;
+
+        // 表示時間 is a real personal filter. Only show tasks that fit fully
+        // inside the logged-in member's selected start/end range.
+        const taskStartMinutes = timeToMinutes(
+          normalizeTime(task.startTime, "09:00")
+        );
+        const taskEndMinutes = timeToMinutes(
+          normalizeTime(task.endTime, "10:00")
+        );
+
+        if (taskStartMinutes < personalStartMinutes) return false;
+        if (taskEndMinutes > personalEndMinutes) return false;
+
         return true;
       }),
     [
       assigneeId,
       data,
       groupBy,
+      personalEndMinutes,
+      personalStartMinutes,
       projectId,
       routeProjectId,
       selectedDateKey,
@@ -190,16 +216,6 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
   );
   const isStoreFocus = groupBy === "store" && Boolean(activeStoreId);
   const timelineHeaderHeight = 72;
-  const personalStartMinutes = clamp(
-    timeToMinutes(currentMember?.timelineStartTime ?? "09:00"),
-    START_MINUTES,
-    END_MINUTES
-  );
-  const personalEndMinutes = clamp(
-    timeToMinutes(currentMember?.timelineEndTime ?? "18:00"),
-    START_MINUTES,
-    END_MINUTES
-  );
   const personalBeforeHeight =
     ((personalStartMinutes - START_MINUTES) / 60) * HOUR_HEIGHT;
   const personalAfterTop =
