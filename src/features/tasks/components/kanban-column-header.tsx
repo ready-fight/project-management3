@@ -8,9 +8,9 @@ import { TASK_STATUS_LABELS } from "../constants";
 import { useCreateTaskModal } from "../hooks/use-create-task-modal";
 
 const statusStyleMap: Record<TaskStatus, string> = {
-  [TaskStatus.BACKLOG]: "border-t-slate-400",
-  [TaskStatus.TODO]: "border-t-sky-400",
-  [TaskStatus.IN_PROGRESS]: "border-t-amber-400",
+  [TaskStatus.BACKLOG]: "border-t-amber-400",
+  [TaskStatus.TODO]: "border-t-slate-400",
+  [TaskStatus.IN_PROGRESS]: "border-t-blue-400",
   [TaskStatus.IN_REVIEW]: "border-t-violet-400",
   [TaskStatus.DONE]: "border-t-emerald-400",
 };
