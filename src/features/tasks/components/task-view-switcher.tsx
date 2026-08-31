@@ -6,9 +6,9 @@ import {
   LayoutGridIcon,
   LoaderIcon,
   PlusIcon,
-  RefreshCwIcon,
-  WifiIcon,
-  WifiOffIcon,
+  // RefreshCwIcon,
+  // WifiIcon,
+  // WifiOffIcon,
 } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { format } from "date-fns";
@@ -56,8 +56,8 @@ export const TaskViewSwitcher = ({
   const {
     data: tasks,
     isLoading: isLoadingTasks,
-    isFetching: isFetchingTasks,
-    refetch: refetchTasks,
+    // isFetching: isFetchingTasks,
+    // refetch: refetchTasks,
   } = useGetTasks({
     workspaceId,
     projectId: queryProjectId,
@@ -144,7 +144,7 @@ export const TaskViewSwitcher = ({
             </TabsTrigger>
           </TabsList>
           <div className="flex w-full items-center gap-2 lg:w-auto">
-            <div
+            {/* <div
               className={`hidden h-9 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium sm:flex ${
                 syncStatus === "realtime"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -184,7 +184,7 @@ export const TaskViewSwitcher = ({
                 className={`size-4 ${isFetchingTasks ? "animate-spin" : ""}`}
               />
               <span className="sr-only">再読み込み</span>
-            </Button>
+            </Button> */}
             <Button onClick={open} size="sm" className="h-9 flex-1 lg:flex-none">
               <PlusIcon className="mr-1.5 size-4" />
               タスクを追加
