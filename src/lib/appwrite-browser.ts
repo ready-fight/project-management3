@@ -9,33 +9,26 @@ const appwriteBrowserClient = new Client()
 const appwriteBrowserAccount = new Account(appwriteBrowserClient);
 
 /**
- * Keep a browser-side Appwrite session available for Realtime.
- * The application continues to use the existing HttpOnly SSR session for API routes.
+ * Creates the browser-side Appwrite session used by Realtime.
+ *
+ * The normal Next.js API authentication still uses the HttpOnly SSR session.
+ * This browser session exists only so Appwrite Realtime can authenticate.
  */
 export async function ensureBrowserAppwriteSession(
   email: string,
   password: string
 ) {
-  try {
-    const currentUser = await appwriteBrowserAccount.get();
-
-    if (currentUser.email === email) {
-      return;
-    }
-
-    await appwriteBrowserAccount.deleteSession("current");
-  } catch {
-    // No browser-side session exists yet. That is expected for existing users.
-  }
-
   await appwriteBrowserAccount.createEmailPasswordSession(email, password);
 }
 
+/**
+ * Remove the optional browser-side Realtime session on logout.
+ */
 export async function deleteBrowserAppwriteSession() {
   try {
     await appwriteBrowserAccount.deleteSession("current");
   } catch {
-    // Logging out should still succeed if the optional browser session is absent.
+    // Ignore if no browser-side session exists.
   }
 }
 

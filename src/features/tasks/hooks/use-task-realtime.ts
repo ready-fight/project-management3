@@ -5,10 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Query } from "appwrite";
 
 import { DATABASE_ID, TASKS_ID } from "@/config";
-import {
-  appwriteBrowserAccount,
-  appwriteBrowserClient,
-} from "@/lib/appwrite-browser";
+import { appwriteBrowserClient } from "@/lib/appwrite-browser";
 
 import type { TaskDocument } from "../types";
 
@@ -55,41 +52,41 @@ export const useTaskRealtime = ({
       }, 200);
     };
 
-    const connect = async () => {
+    const connect = () => {
       try {
-        // This verifies that the browser-side session exists before subscribing.
-        await appwriteBrowserAccount.get();
-        if (disposed) return;
-
-        const channel = `databases.${DATABASE_ID}.collections.${TASKS_ID}.documents`;
-
+        const channel =
+          `databases.${DATABASE_ID}.collections.${TASKS_ID}.documents`;
+    
         unsubscribe = appwriteBrowserClient.subscribe<RealtimePayload>(
           channel,
           (response) => {
             const payload = response.payload;
-
-            // The subscription is filtered by workspace on Appwrite's server.
-            // Keep this guard as a defensive check for older Realtime behavior.
+    
             if (payload?.workspaceId && payload.workspaceId !== workspaceId) {
               return;
             }
-
+    
             scheduleRefresh();
           },
           [Query.equal("workspaceId", [workspaceId])]
         );
-
-        if (!disposed) setStatus("realtime");
+    
+        if (!disposed) {
+          setStatus("realtime");
+        }
       } catch (error) {
         console.warn(
           "Appwrite Realtime unavailable; using fallback refresh.",
           error
         );
-        if (!disposed) setStatus("fallback");
+    
+        if (!disposed) {
+          setStatus("fallback");
+        }
       }
     };
 
-    void connect();
+    connect();
 
     return () => {
       disposed = true;
