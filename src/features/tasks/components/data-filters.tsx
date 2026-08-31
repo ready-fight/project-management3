@@ -1,4 +1,4 @@
-import { CalendarDaysIcon, ListChecksIcon, StoreIcon, UserIcon, XIcon } from "lucide-react";
+import { CalendarDaysIcon, ListChecksIcon, StoreIcon, XIcon } from "lucide-react";
 
 import { useGetMembers } from "@/features/members/api/use-get-members";
 import { useGetProjects } from "@/features/projects/api/use-get-projects";
@@ -18,6 +18,7 @@ import {
 import { useTaskFilters } from "../hooks/use-task-filters";
 import { TaskStatus } from "../types";
 import { TASK_STATUS_LABELS } from "../constants";
+import { MemberFilterCombobox } from "./member-filter-combobox";
 
 interface DataFiltersProps {
   hideProjectFilter?: boolean;
@@ -38,9 +39,9 @@ export const DataFilters = ({ hideProjectFilter }: DataFiltersProps) => {
     label: project.name,
   }));
   const memberOptions = members?.documents.map((member) => ({
-    value: member.$id,
-    label: member.name,
-  }));
+    id: member.$id,
+    name: member.name,
+  })) ?? [];
 
   const [{ status, assigneeId, projectId, dueDate }, setFilters] =
     useTaskFilters();
@@ -49,8 +50,8 @@ export const DataFilters = ({ hideProjectFilter }: DataFiltersProps) => {
     setFilters({ status: value === "all" ? null : (value as TaskStatus) });
   };
 
-  const onAssigneeChange = (value: string) => {
-    setFilters({ assigneeId: value === "all" ? null : value });
+  const onAssigneeChange = (value: string | null) => {
+    setFilters({ assigneeId: value });
   };
 
   const onProjectChange = (value: string) => {
@@ -83,23 +84,11 @@ export const DataFilters = ({ hideProjectFilter }: DataFiltersProps) => {
         </Select>
       )}
 
-      <Select value={assigneeId ?? "all"} onValueChange={onAssigneeChange}>
-        <SelectTrigger className="h-9 w-full bg-white text-sm shadow-none lg:w-auto">
-          <div className="flex items-center pr-2">
-            <UserIcon className="mr-2 size-4 text-slate-400" />
-            <SelectValue placeholder="すべての担当者" />
-          </div>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">すべての担当者</SelectItem>
-          <SelectSeparator />
-          {memberOptions?.map((member) => (
-            <SelectItem key={member.value} value={member.value}>
-              {member.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <MemberFilterCombobox
+        value={assigneeId}
+        onChange={onAssigneeChange}
+        options={memberOptions}
+      />
 
       <DatePicker
         placeholder="日付"

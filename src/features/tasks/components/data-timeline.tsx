@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MemberAvatar } from "@/features/members/components/member-avatar";
 import { useGetMembers } from "@/features/members/api/use-get-members";
+import { useWorkspacePermissions } from "@/features/workspaces/hooks/use-workspace-permissions";
 import { ProjectAvatar } from "@/features/projects/components/project-avatar";
 import { useGetProjects } from "@/features/projects/api/use-get-projects";
 import { useProjectId } from "@/features/projects/hooks/use-project-id";
@@ -23,6 +24,7 @@ import { useUpdateTask } from "../api/use-update-task";
 import { TASK_STATUS_LABELS, TASK_TYPE_ICONS, TASK_TYPE_LABELS } from "../constants";
 import { useEditTaskModal } from "../hooks/use-edit-task-modal";
 import { useTaskFilters } from "../hooks/use-task-filters";
+import { MemberTimelineHours } from "./member-timeline-hours";
 import {
   getTaskDurationMinutes,
   minutesToTime,
@@ -99,6 +101,7 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
   const [{ projectId, assigneeId, status, dueDate }, setFilters] = useTaskFilters();
   const { mutate: updateTask, isPending } = useUpdateTask();
   const { open } = useEditTaskModal();
+  const { currentMember, canManageMembers } = useWorkspacePermissions();
   const { data: projects } = useGetProjects({ workspaceId });
   const { data: members } = useGetMembers({ workspaceId });
 
@@ -187,6 +190,7 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
     [activeStoreId, projects?.documents]
   );
   const isStoreFocus = groupBy === "store" && Boolean(activeStoreId);
+  const timelineHeaderHeight = groupBy === "assignee" ? 108 : 72;
 
   const tasksByGroup = useMemo(() => {
     const grouped = new Map<string, Task[]>();
@@ -437,38 +441,66 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
           className="grid min-w-max"
           style={{ gridTemplateColumns: `76px ${groups.length * GROUP_WIDTH}px` }}
         >
-          <div className="sticky left-0 top-0 z-40 flex h-[72px] items-center justify-center border-b border-r bg-white text-sm font-bold text-slate-700">
+          <div
+            className="sticky left-0 top-0 z-40 flex items-center justify-center border-b border-r bg-white text-sm font-bold text-slate-700"
+            style={{ height: timelineHeaderHeight }}
+          >
             時間
           </div>
 
           <div
-            className="sticky top-0 z-30 grid h-[72px] border-b bg-white"
-            style={{ gridTemplateColumns: `repeat(${groups.length}, ${GROUP_WIDTH}px)` }}
+            className="sticky top-0 z-30 grid border-b bg-white"
+            style={{
+              height: timelineHeaderHeight,
+              gridTemplateColumns: `repeat(${groups.length}, ${GROUP_WIDTH}px)`,
+            }}
           >
             {groups.map((group) => {
               const isFocusedGroup = isStoreFocus && group.id === activeStoreId;
+              const member =
+                groupBy === "assignee"
+                  ? members?.documents.find((item) => item.$id === group.id)
+                  : undefined;
+              const canEditTimelineHours =
+                groupBy === "assignee" &&
+                Boolean(
+                  canManageMembers ||
+                    (currentMember && currentMember.$id === group.id)
+                );
 
               return (
-              <div
-                key={group.id}
-                className={`flex items-center justify-center gap-2 border-r px-4 text-sm font-bold ${
-                  isFocusedGroup
-                    ? "bg-cyan-50 text-cyan-800 ring-1 ring-inset ring-cyan-200"
-                    : "text-slate-800"
-                }`}
-              >
-                {groupBy === "assignee" ? (
-                  <MemberAvatar name={group.name} className="size-8" />
-                ) : (
-                  <ProjectAvatar
-                    name={group.name}
-                    image={group.imageUrl}
-                    className="size-8 rounded-full"
-                    fallbackClassName="rounded-full"
-                  />
-                )}
-                <span className="truncate">{group.name}</span>
-              </div>
+                <div
+                  key={group.id}
+                  className={`flex flex-col items-center justify-center border-r px-3 text-sm font-bold ${
+                    isFocusedGroup
+                      ? "bg-cyan-50 text-cyan-800 ring-1 ring-inset ring-cyan-200"
+                      : "text-slate-800"
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center justify-center gap-2">
+                    {groupBy === "assignee" ? (
+                      <MemberAvatar name={group.name} className="size-8" />
+                    ) : (
+                      <ProjectAvatar
+                        name={group.name}
+                        image={group.imageUrl}
+                        className="size-8 rounded-full"
+                        fallbackClassName="rounded-full"
+                      />
+                    )}
+                    <span className="truncate">{group.name}</span>
+                  </div>
+
+                  {groupBy === "assignee" && member && (
+                    <MemberTimelineHours
+                      memberId={member.$id}
+                      workspaceId={workspaceId}
+                      initialStartTime={member.timelineStartTime}
+                      initialEndTime={member.timelineEndTime}
+                      canEdit={canEditTimelineHours}
+                    />
+                  )}
+                </div>
               );
             })}
           </div>
@@ -510,6 +542,43 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
                     "repeating-linear-gradient(to bottom, transparent 0, transparent 77px, rgb(226 232 240) 77px, rgb(226 232 240) 78px)",
                 }}
               >
+                {groupBy === "assignee" && (() => {
+                  const member = members?.documents.find(
+                    (item) => item.$id === group.id
+                  );
+                  const workStart = clamp(
+                    timeToMinutes(member?.timelineStartTime ?? "09:00"),
+                    START_MINUTES,
+                    END_MINUTES
+                  );
+                  const workEnd = clamp(
+                    timeToMinutes(member?.timelineEndTime ?? "18:00"),
+                    START_MINUTES,
+                    END_MINUTES
+                  );
+                  const beforeHeight =
+                    ((workStart - START_MINUTES) / 60) * HOUR_HEIGHT;
+                  const afterTop =
+                    ((workEnd - START_MINUTES) / 60) * HOUR_HEIGHT;
+
+                  return (
+                    <>
+                      {beforeHeight > 0 && (
+                        <div
+                          className="pointer-events-none absolute inset-x-0 top-0 z-[1] bg-slate-200/45"
+                          style={{ height: beforeHeight }}
+                        />
+                      )}
+                      {afterTop < TIMELINE_HEIGHT && (
+                        <div
+                          className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-slate-200/45"
+                          style={{ height: TIMELINE_HEIGHT - afterTop }}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
+
                 {(tasksByGroup.get(group.id) ?? []).map((task) => {
                   const start = clamp(timeToMinutes(task.startTime), START_MINUTES, END_MINUTES);
                   const duration = getTaskDurationMinutes(task.startTime, task.endTime);
@@ -579,7 +648,7 @@ export const DataTimeline = ({ data }: DataTimelineProps) => {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        ※ ドラッグは30分単位でスナップします。タップすると詳細編集を開きます。
+        ※ ドラッグは30分単位でスナップします。担当者表示では、各メンバーの勤務時間外を薄いグレーで表示します。
       </p>
     </div>
   );
