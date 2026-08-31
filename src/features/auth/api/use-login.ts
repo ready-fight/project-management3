@@ -19,12 +19,12 @@ export const useLogin = () => {
       return await response.json();
     },
     onSuccess: () => {
-      toast.success("Logged in.");
+      toast.success("ログインしました。");
       router.refresh();
       queryClient.invalidateQueries({ queryKey: ["current"] });
     },
     onError: () => {
-      toast.error("Failed to log in.");
+      toast.error("ログインに失敗しました。");
     },
   });
 
