@@ -6,6 +6,12 @@ import { toast } from "sonner";
 
 import { useUpdateMemberTimelineHours } from "@/features/members/api/use-update-member-timeline-hours";
 import { useWorkspacePermissions } from "@/features/workspaces/hooks/use-workspace-permissions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 
 interface TimelineHoursFilterProps {
   workspaceId: string;
@@ -13,6 +19,11 @@ interface TimelineHoursFilterProps {
 
 const DEFAULT_START_TIME = "09:00";
 const DEFAULT_END_TIME = "18:00";
+
+const HOUR_OPTIONS = Array.from({ length: 10 }, (_, index) => {
+  const hour = 9 + index;
+  return `${String(hour).padStart(2, "0")}:00`;
+});
 
 const timeToMinutes = (value: string) => {
   const [hours, minutes] = value.split(":").map(Number);
@@ -36,37 +47,40 @@ export const TimelineHoursFilter = ({
     setEndTime(savedEndTime);
   }, [savedEndTime, savedStartTime]);
 
-  const save = () => {
+  const persist = (nextStartTime: string, nextEndTime: string) => {
     if (!currentMember) return;
 
-    const startMinutes = timeToMinutes(startTime);
-    const endMinutes = timeToMinutes(endTime);
-
-    if (startMinutes < 9 * 60 || endMinutes > 18 * 60) {
-      toast.error("表示時間は09:00〜18:00の範囲で設定してください。");
-      setStartTime(savedStartTime);
-      setEndTime(savedEndTime);
-      return;
-    }
+    const startMinutes = timeToMinutes(nextStartTime);
+    const endMinutes = timeToMinutes(nextEndTime);
 
     if (startMinutes >= endMinutes) {
       toast.error("開始時間は終了時間より前に設定してください。");
-      setStartTime(savedStartTime);
-      setEndTime(savedEndTime);
       return;
     }
 
-    if (startTime === savedStartTime && endTime === savedEndTime) {
-      return;
-    }
+    // Update the local trigger immediately. The mutation hook also writes the
+    // same values into the members React Query cache optimistically, which
+    // makes the timeline gray area react before the Appwrite request finishes.
+    setStartTime(nextStartTime);
+    setEndTime(nextEndTime);
 
     saveHours({
       memberId: currentMember.$id,
       workspaceId,
-      startTime,
-      endTime,
+      startTime: nextStartTime,
+      endTime: nextEndTime,
     });
   };
+
+  const onStartTimeChange = (value: string) => {
+    persist(value, endTime);
+  };
+
+  const onEndTimeChange = (value: string) => {
+    persist(startTime, value);
+  };
+
+  const disabled = isLoading || isPending || !currentMember;
 
   return (
     <div
@@ -77,37 +91,56 @@ export const TimelineHoursFilter = ({
       <span className="hidden whitespace-nowrap text-xs text-slate-500 xl:inline">
         表示時間
       </span>
-      <input
-        type="time"
-        min="09:00"
-        max="18:00"
-        step={300}
+
+      <Select
         value={startTime}
-        disabled={isLoading || isPending || !currentMember}
-        aria-label="時系列表示開始時間"
-        className="h-7 w-[76px] rounded border-0 bg-transparent px-1 text-xs font-medium text-slate-700 outline-none focus:bg-slate-50 disabled:opacity-60"
-        onChange={(event) => setStartTime(event.target.value)}
-        onBlur={save}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-        }}
-      />
+        onValueChange={onStartTimeChange}
+        disabled={disabled}
+      >
+        <SelectTrigger
+          className="h-7 w-[64px] border-0 bg-transparent px-1 text-xs font-medium text-slate-700 shadow-none focus:ring-0"
+          aria-label="時系列表示開始時間"
+        >
+          <span>{startTime}</span>
+        </SelectTrigger>
+        <SelectContent>
+          {HOUR_OPTIONS.slice(0, -1).map((time) => (
+            <SelectItem
+              key={time}
+              value={time}
+              disabled={timeToMinutes(time) >= timeToMinutes(endTime)}
+            >
+              {time.slice(0, 2)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
       <span className="text-xs text-slate-400">〜</span>
-      <input
-        type="time"
-        min="09:00"
-        max="18:00"
-        step={300}
+
+      <Select
         value={endTime}
-        disabled={isLoading || isPending || !currentMember}
-        aria-label="時系列表示終了時間"
-        className="h-7 w-[76px] rounded border-0 bg-transparent px-1 text-xs font-medium text-slate-700 outline-none focus:bg-slate-50 disabled:opacity-60"
-        onChange={(event) => setEndTime(event.target.value)}
-        onBlur={save}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-        }}
-      />
+        onValueChange={onEndTimeChange}
+        disabled={disabled}
+      >
+        <SelectTrigger
+          className="h-7 w-[64px] border-0 bg-transparent px-1 text-xs font-medium text-slate-700 shadow-none focus:ring-0"
+          aria-label="時系列表示終了時間"
+        >
+          <span>{endTime}</span>
+        </SelectTrigger>
+        <SelectContent>
+          {HOUR_OPTIONS.slice(1).map((time) => (
+            <SelectItem
+              key={time}
+              value={time}
+              disabled={timeToMinutes(time) <= timeToMinutes(startTime)}
+            >
+              {time.slice(0, 2)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 };

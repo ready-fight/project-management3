@@ -51,10 +51,11 @@ export const useUpdateMemberTimelineHours = () => {
     },
     onMutate: async (variables) => {
       const queryKey = ["members", variables.workspaceId] as const;
-      await queryClient.cancelQueries({ queryKey });
-
       const previous = queryClient.getQueryData<MembersQueryData>(queryKey);
 
+      // Write first so 時系列ビュー reacts immediately when an hour is chosen.
+      // Cancelling an in-flight member refetch afterwards prevents stale data
+      // from replacing this optimistic value while the PATCH is running.
       queryClient.setQueryData<MembersQueryData>(queryKey, (current) => {
         if (!current) return current;
 
@@ -71,6 +72,8 @@ export const useUpdateMemberTimelineHours = () => {
           ),
         };
       });
+
+      await queryClient.cancelQueries({ queryKey });
 
       return { previous, queryKey };
     },
