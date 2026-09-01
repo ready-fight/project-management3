@@ -20,7 +20,7 @@ export const Projects = () => {
   const { canManageStores } = useWorkspacePermissions();
 
   return (
-    <div className="flex flex-col gap-1 px-1">
+    <div className="flex flex-col gap-1 px-1 overflow-auto max-h-[300px]">
       <div className="mb-1 flex items-center justify-between px-2">
         <p className="text-[11px] font-bold tracking-wide text-slate-400">
           店舗

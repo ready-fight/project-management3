@@ -16,10 +16,17 @@ export const ResponsiveModal = ({
   onOpenChange,
   mobileMode = "drawer",
 }: ResponsiveModalProps) => {
-  const isDesktop = useMedia("(min-width: 1024px)", true);
-  const useDialog = isDesktop || mobileMode === "dialog";
+  // Width alone is not a good mobile detector: a desktop browser can simply be
+  // resized below the breakpoint. Only use the bottom Drawer on a genuinely
+  // narrow, coarse-pointer (touch) device. Narrow desktop windows keep Dialog.
+  const isNarrowTouchDevice = useMedia(
+    "(max-width: 767px) and (pointer: coarse)",
+    false
+  );
 
-  if (useDialog) {
+  const useDrawer = mobileMode === "drawer" && isNarrowTouchDevice;
+
+  if (!useDrawer) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="w-[calc(100%-1.5rem)] max-w-lg rounded-xl border-none p-0 overflow-y-auto hide-scrollbar max-h-[calc(100dvh-1.5rem)] sm:max-h-[85vh]">
@@ -32,7 +39,7 @@ export const ResponsiveModal = ({
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
-        <div className="overflow-y-auto hide-scrollbar max-h-[85vh]">
+        <div className="overflow-y-auto hide-scrollbar max-h-[calc(100dvh-1.5rem)] pb-[env(safe-area-inset-bottom)]">
           {children}
         </div>
       </DrawerContent>

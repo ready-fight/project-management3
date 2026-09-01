@@ -60,7 +60,12 @@ export const TaskActions = ({ id, projectId, children }: TaskActionsProps) => {
             店舗を開く
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() => open(id)}
+            onSelect={() => {
+              // Let the dropdown portal/focus cleanup finish first. Opening a
+              // Drawer/Dialog during the same select event can race on mobile
+              // Chromium and leave only the modal overlay visible.
+              window.setTimeout(() => open(id), 0);
+            }}
             className="p-2.5 text-sm font-medium"
           >
             <PencilIcon className="mr-2 size-4 stroke-2" />
