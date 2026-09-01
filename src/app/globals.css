@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 body {
+  overflow: hidden;
+}
+
+body {
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN",
     "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
 }
