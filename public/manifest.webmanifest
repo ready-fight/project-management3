@@ -10,6 +10,7 @@
   "orientation": "any",
   "lang": "ja",
   "categories": ["business", "productivity"],
+  "id": "/",
   "icons": [
     {
       "src": "/icons/icon-192.png",
