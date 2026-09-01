@@ -35,7 +35,7 @@ export const Navbar = () => {
   const { title, description } = pathnameMap[pathnameKey] || defaultMap;
 
   return (
-    <nav className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b bg-white/95 px-4 backdrop-blur lg:px-7">
+    <nav className="sticky top-0 z-[21] flex h-[68px] items-center justify-between border-b bg-white/95 px-4 backdrop-blur lg:px-7">
       <div className="hidden flex-col lg:flex">
         <h1 className="text-lg font-bold text-slate-800">{title}</h1>
         <p className="mt-0.5 text-xs text-slate-500">{description}</p>
