@@ -28,13 +28,20 @@ export const KanbanCard = ({ task }: KanbanCardProps) => {
             <span>{TASK_TYPE_ICONS[taskType]}</span>
             <span>{TASK_TYPE_LABELS[taskType]}</span>
           </div>
-          <p
-            className={`line-clamp-2 text-sm leading-5 text-slate-800 ${
-              task.isImportant ? "font-bold" : "font-medium"
-            }`}
-          >
-            {task.name}
-          </p>
+          <div className="flex items-start gap-1.5">
+            <p
+              className={`min-w-0 line-clamp-2 text-sm leading-5 text-slate-800 ${
+                task.isImportant ? "font-bold" : "font-medium"
+              }`}
+            >
+              {task.name}
+            </p>
+            {task.isImportant && (
+              <span className="mt-0.5 shrink-0 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold leading-4 text-red-600 ring-1 ring-inset ring-red-200">
+                重要
+              </span>
+            )}
+          </div>
         </div>
         <TaskActions id={task.$id} projectId={task.projectId}>
           <button className="flex size-6 shrink-0 items-center justify-center rounded text-slate-400 opacity-70 transition hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100">
