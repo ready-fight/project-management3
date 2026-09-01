@@ -146,21 +146,21 @@ export const TaskViewSwitcher = ({
         <div className="flex flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <TabsList className="h-auto w-full justify-start overflow-x-auto bg-slate-100 p-1 lg:w-auto">
             <TabsTrigger
-              className="h-8 shrink-0 gap-1.5 px-3 text-xs lg:w-auto"
+              className="h-8 shrink-0 gap-1.5 px-3 text-xs lg:w-auto flex-1"
               value="kanban"
             >
               <LayoutGridIcon className="size-3.5" />
               カンバン
             </TabsTrigger>
             <TabsTrigger
-              className="h-8 shrink-0 gap-1.5 px-3 text-xs lg:w-auto"
+              className="h-8 shrink-0 gap-1.5 px-3 text-xs lg:w-auto flex-1"
               value="timeline"
             >
               <Clock3Icon className="size-3.5" />
               時系列ビュー
             </TabsTrigger>
             <TabsTrigger
-              className="h-8 shrink-0 gap-1.5 px-3 text-xs lg:w-auto"
+              className="h-8 shrink-0 gap-1.5 px-3 text-xs lg:w-auto flex-1"
               value="schedule"
             >
               <CalendarRangeIcon className="size-3.5" />
