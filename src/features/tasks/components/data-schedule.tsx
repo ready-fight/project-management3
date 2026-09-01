@@ -348,7 +348,7 @@ export const DataSchedule = ({ data }: DataScheduleProps) => {
                         </Select>
                       </td>
 
-                      <td className="border-r px-4 py-3 text-center">
+                      <td className="border-r px-4 py-3 text-center whitespace-nowrap">
                         {task.isImportant ? (
                           <span className="inline-flex rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-bold text-red-600">
                             高
